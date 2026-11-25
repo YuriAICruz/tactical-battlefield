@@ -5,3 +5,4 @@ out/
 vs2022/
 _build/
 dist/
+.idea/
