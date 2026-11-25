@@ -34,7 +34,7 @@ cmake --build build-ninja
 
 ## Visual Studio / Rider solution
 
-Run `GenerateSolution.bat` (or `cmake -S . -B vs2022 -G "Visual Studio 17 2022" -A x64`) to produce
+Run `Generate.bat` (or `cmake -S . -B vs2022 -G "Visual Studio 17 2022" -A x64`) to produce
 `vs2022\BattlefieldCpp.sln`, then open it in Visual Studio 2022 or Rider (File → Open → the `.sln`).
 It contains `Battlefield`, `BattlefieldTests` and `BattlefieldTestRunner`; the runner is the startup project, so
 **F5 debugs the whole suite** and breakpoints in `Battlefield/Private` are hit. To debug a single test, set
@@ -60,18 +60,20 @@ Compile definitions:
 ## Install / consume from another project
 
 ```powershell
-cmake --install build --config Release --prefix C:\sdk\battlefield
+Generate.bat install Debug        # builds and installs into BattlefieldCpp\dist
+Generate.bat install Release      # installing both configurations into the same prefix is supported
 ```
 
-installs `bin\Battlefield.dll`, `lib\Battlefield.lib` and the `Public/` headers under `include\`. From another CMake
-project in the same repository tree you can simply do:
+`dist\` then contains `bin\Battlefield.dll`, `lib\Battlefield.lib`, the public headers in `include\` and a CMake
+package in `lib\cmake\Battlefield`. A consumer lives in its **own** project and solution (see
+`../BattlefieldGame`, documented in its own `docs/`):
 
 ```cmake
-add_subdirectory(BattlefieldCpp/Battlefield)
-target_link_libraries(MyGame PRIVATE Battlefield)   # include path + dllimport come with it
+find_package(Battlefield CONFIG REQUIRED)          # with -DBattlefield_DIR=<dist>/lib/cmake/Battlefield
+target_link_libraries(MyGame PRIVATE Battlefield::Battlefield)   # include path + dllimport come along
 ```
 
-Remember to copy `Battlefield.dll` next to your executable.
+Copy `Battlefield.dll` next to your executable (the sample does this in a post-build step).
 
 ## ABI notes
 

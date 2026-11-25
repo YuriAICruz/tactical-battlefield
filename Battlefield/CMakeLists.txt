@@ -29,5 +29,20 @@ else()
   target_compile_options(Battlefield PRIVATE -Wall -Wextra)
 endif()
 
-install(TARGETS Battlefield RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+# --- Installable CMake package: find_package(Battlefield CONFIG) gives Battlefield::Battlefield ---
+include(CMakePackageConfigHelpers)
+
+install(TARGETS Battlefield EXPORT BattlefieldTargets
+  RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(DIRECTORY Public/ DESTINATION include)
+install(EXPORT BattlefieldTargets NAMESPACE Battlefield:: FILE BattlefieldTargets.cmake
+  DESTINATION lib/cmake/Battlefield)
+
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/BattlefieldConfig.cmake
+  "include(\"\${CMAKE_CURRENT_LIST_DIR}/BattlefieldTargets.cmake\")
+")
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/BattlefieldConfigVersion.cmake
+  VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion ARCH_INDEPENDENT)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/BattlefieldConfig.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/BattlefieldConfigVersion.cmake
+  DESTINATION lib/cmake/Battlefield)
