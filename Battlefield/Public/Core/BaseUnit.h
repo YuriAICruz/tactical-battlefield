@@ -1,0 +1,141 @@
+#pragma once
+#include "Platform/CoreTypes.h"
+#include "Core/GridEntity.h"
+#include "Enums/Teams.h"
+#include "StatusEffects/BaseStatusEffect.h"
+#include "Grid.h"
+#include <functional>
+#include <memory>
+
+#include "StatusEffects/StatusEffect.h"
+
+static constexpr uint8 MAX_EFFECTS_PER_UNIT = 8;
+
+class FTeamSystem;
+
+class BATTLEFIELD_API FBaseUnit : public FGridEntity
+{
+public:
+	struct FTurnResources
+	{
+		int32 ap = 6;
+		int32 move = 5;
+
+		FTurnResources operator+(const FTurnResources& other) const
+		{
+			FTurnResources result;
+
+			result.ap = ap + other.ap;
+			result.move = move + other.move;
+			return result;
+		}
+	};
+
+	struct FCombatStats
+	{
+		int32 maxHealth = 10;
+		int32 health = 10;
+		int32 armor = 0;
+		int32 aim = 10;
+		int32 dodge = 0;
+
+		FCombatStats operator+(const FCombatStats& other) const
+		{
+			FCombatStats result;
+
+			result.maxHealth = maxHealth + other.maxHealth;
+			result.health = health + other.health;
+			result.armor = armor + other.armor;
+			result.aim = aim + other.aim;
+			result.dodge = dodge + other.dodge;
+			return result;
+		}
+	};
+
+	struct FCombatWeapon
+	{
+		int32 baseDamage = 5;
+		int32 baseCost = 1;
+		int32 range = 5;
+	};
+
+public:
+	std::function<void(const FBaseUnit*)> OnDeath;
+	std::function<void(const FBaseUnit*, int32 damage)> OnReceiveDamage;
+	std::function<void(const FBaseUnit*, int32 value)> OnReceivedHeal;
+	std::function<void(const FBaseUnit*, uint8)> OnStatusAdded;
+	std::function<void(const FBaseUnit*, uint8)> OnStatusRemoved;
+	std::function<void(const FBaseUnit*, uint8)> OnStatusTriggered;
+
+public:
+	FBaseUnit(const uint32& unitId);
+	virtual ~FBaseUnit() = default;
+
+	bool IsEnemy(const FBaseUnit* actor) const;
+
+	bool IsAlive() const;
+	void ReceiveDamage(int32 damage);
+	void ReceiveHeal(int32 heal);
+	int32 CalculateWeaponAttackDamage(FGrid::FGridCoordinate position, FGrid::FGridCoordinate targetPosition) const;
+	bool InRange(FGrid::FGridCoordinate position, FGrid::FGridCoordinate targetPosition) const;
+	int32 GetWeaponAttackCost() const;
+	int32 GetWeaponBaseDamage() const;
+	int32 GetWeaponAttackRange() const;
+	int32 GetVisionRange() const;
+
+	int32 GetMovementCost(const FGrid* grid, FGrid::FGridCoordinate destination) const;
+	virtual bool CanMove(int32 cost = 1) const override;
+
+	bool CanDoAction(int32 cost = 1) const;
+	bool CanAttack(int32 cost = 0) const;
+	int32 GetActionCost();
+	void DoAction();
+
+	int32 GetHealth() const;
+	int32 GetMaxHealth() const;
+
+	int32 GetMovementPoints() const;
+	int32 GetMaxMovementPoints() const;
+	bool SpendMovementPoints(int32 value);
+
+	int32 GetActionPoints() const;
+	int32 GetMaxActionPoints() const;
+	bool SpendActionPoints(int32 value);
+
+	FBaseStatusEffect* AddStatusEffect(uint8 StatusId);
+	bool RemoveStatusEffect(uint8 type);
+	FBaseStatusEffect* GetStatusEffect(uint8 type) const;
+	void GetStatusEffects(std::vector<FBaseStatusEffect*>& effects) const;
+	bool HasStatusType(uint8 type) const;
+
+	void ResetTurnStats();
+
+protected:
+	void SetCombatStats(const FCombatStats& combatStats, const FTurnResources& turnResources);
+	void SetCombatWeapon(const FCombatWeapon& combatWeapon);
+	void ResetHealth();
+	void AddStatusTurnTicks();
+	static int32 GetDistance(FGrid::FGridCoordinate position, FGrid::FGridCoordinate targetPosition);
+
+private:
+	FCombatStats mBaseCombatStats;
+	FTurnResources mBaseTurnResources;
+	FTurnResources mCurrentTurnResources;
+	FCombatWeapon mCurrentCombatWeapon;
+	std::unique_ptr<FBaseStatusEffect> mStatusEffectsBuffer[MAX_EFFECTS_PER_UNIT];
+};
+
+class FUnit : public FBaseUnit
+{
+public:
+	FUnit(const uint32& unitId, const FCombatStats& combatStats, const FTurnResources& turnResources,
+	      const FCombatWeapon& combatWeapon, ETeams team):
+		FBaseUnit(unitId)
+	{
+		SetCombatStats(combatStats, turnResources);
+		SetCombatWeapon(combatWeapon);
+		SetTeam(team);
+		ResetTurnStats();
+		ResetHealth();
+	}
+};
