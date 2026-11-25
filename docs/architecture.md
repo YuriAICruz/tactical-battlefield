@@ -2,41 +2,7 @@
 
 ## Layering
 
-```plantuml
-@startuml
-skinparam componentStyle rectangle
-skinparam shadowing false
-
-actor "Game / UI / AI code" as Client
-
-package "Battlefield.dll" {
-  [FBattleController] as Controller
-  [FBattleQueries] as Queries
-  [FBattlefieldData] as Data
-  [FTroupe (x3)] as Troupe
-  [FTeamSystem] as Teams
-  [FBaseUnit / FUnit\n(FGridEntity)] as Unit
-  [FStatusEffect] as Status
-  [FGrid\n(tiles, pathing, LOS)] as Grid
-}
-
-Client --> Controller : calls, subscribes to callbacks
-Client --> Queries : read-only questions
-Controller --> Queries : GetQueryController()
-Controller *-- Data
-Controller *-- Teams
-Data *-- Troupe
-Troupe o-- Unit : owns
-Troupe ..> Teams : registers units
-Teams ..> Unit : refreshes, checks alive
-Unit *-- Status : up to 8
-Controller --> Grid : borrowed pointer
-Queries --> Grid
-Queries --> Teams
-Queries --> Data
-Grid ..> Unit : occupancy (FGridEntity*)
-@enduml
-```
+plantuml file `architecture.puml`
 
 Dependencies only point downwards: `FGrid` knows nothing about battles, `FBaseUnit` knows nothing about
 the controller, and the controller is the only place where the pieces are combined.
