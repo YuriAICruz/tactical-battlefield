@@ -4,4 +4,4 @@ build-*/
 out/
 vs2022/
 _build/
-.idea/dist/
+dist/
