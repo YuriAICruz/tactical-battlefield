@@ -42,5 +42,23 @@ public:
 	{
 		return FGrid(static_cast<uint16_t>(width), static_cast<uint16_t>(height));
 	}
-	
+
+	static FBaseUnit* SpawnUnit(FBattleController& controller, ETeams team, FGrid::FGridCoordinate position)
+	{
+		return controller.SpawnUnit(team, kBaseCombatStats, kBaseTurnResources, kCombatWeapon, position);
+	}
+
+	// 10x10 grid with a wall at x = 4 that only leaves (4, 3) open: the only way across is through that tile.
+	static FGrid CreateCorridorGrid()
+	{
+		FGrid grid = CreateTestGrid();
+		for (int y = 0; y < 10; ++y)
+		{
+			if (y != 3)
+			{
+				grid.SetTileWeight(4, y, FGrid::kImpassableWeight);
+			}
+		}
+		return grid;
+	}
 };

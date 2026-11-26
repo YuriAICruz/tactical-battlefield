@@ -457,3 +457,46 @@ bool DeadUnitHasNoValidActionsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("No actions"), actions, EBattleAction::None);
 	return true;
 }
+
+BATTLEFIELD_QUERY_TEST(MovementAreaPassThroughAlliesTest)
+
+bool MovementAreaPassThroughAlliesTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateCorridorGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	const FBattleQueries* query = controller.GetQueryController();
+	const FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {3, 3});
+	TestsHelper::SpawnUnit(controller, ETeams::Player, {4, 3});
+	TestsHelper::SpawnUnit(controller, ETeams::Enemy, {3, 5});
+
+	std::vector<FGrid::FGridCoordinate> blocked;
+	query->GetMovementArea(unit, blocked);
+	TestFalse(TEXT("Default: tile behind the ally unreachable"), TestsHelper::ContainsTile(blocked, {5, 3}));
+	TestFalse(TEXT("Default: ally tile excluded"), TestsHelper::ContainsTile(blocked, {4, 3}));
+
+	std::vector<FGrid::FGridCoordinate> passing;
+	query->GetMovementArea(unit, passing, true);
+	TestTrue(TEXT("Pass-through: tile behind the ally reachable"), TestsHelper::ContainsTile(passing, {5, 3}));
+	TestFalse(TEXT("Pass-through: cannot end on the ally"), TestsHelper::ContainsTile(passing, {4, 3}));
+	TestFalse(TEXT("Pass-through: enemy tile excluded"), TestsHelper::ContainsTile(passing, {3, 5}));
+	TestTrue(TEXT("Pass-through: still contains the origin"), TestsHelper::ContainsTile(passing, {3, 3}));
+
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(MovementCostThroughAllyTest)
+
+bool MovementCostThroughAllyTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateCorridorGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	const FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {3, 3});
+	TestsHelper::SpawnUnit(controller, ETeams::Player, {4, 3});
+
+	TestEqual(TEXT("Default: blocked by the ally"), unit->GetMovementCost(&grid, {5, 3}), -1);
+	TestEqual(TEXT("Pass-through: two tiles"), unit->GetMovementCost(&grid, {5, 3}, true), 2);
+	TestEqual(TEXT("Ally destination is -1"), unit->GetMovementCost(&grid, {4, 3}), -1);
+	TestEqual(TEXT("Ally destination is -1 with pass-through"), unit->GetMovementCost(&grid, {4, 3}, true), -1);
+
+	return true;
+}

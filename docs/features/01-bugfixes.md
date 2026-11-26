@@ -1,12 +1,12 @@
 # 01 Bug fixes that block the game
 
-Status: done (tests in `BugfixTests.cpp`, suite `Hellmarch.Battlefield.Bugfix.*`).
+Status: done (tests live in the Controller, Query and Team suites, see `testing.md`).
 
 Source: `gameplay-rules.md` section 10. Fix only what the game needs. Each fix is its own small commit with a test.
 
 ## Tasks
 - [x] **Move event carries the unit.** Add `unit` (pointer or id) and `from` to `FBattleMoveEvent` (`Public/Events/BattleMoveEvent.h`); fill them in `FBattleController::MoveUnit`/`MoveUnitRaw`. Needed by the renderer to animate a path.
-  - Done when: `OnUnitMoved` listener can read who moved and from where; test `Bugfix.MoveEventCarriesUnitAndOriginTest`.
+  - Done when: `OnUnitMoved` listener can read who moved and from where; test `Controller.MoveEventCarriesUnitAndOriginTest`.
 - [x] **Heal target check.** `HealUnitRaw` currently requires a hostile target. Require a friendly (non-hostile) target instead.
   - Done when: healing an ally works, healing an enemy is rejected.
 - [x] **Current-team check on actions.** `DoUnitAction` must reject units that are not on the current team.

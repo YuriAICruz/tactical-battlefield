@@ -4,17 +4,16 @@
 
 `BattlefieldTests.dll` contains the 166 automation tests of the Unreal module, transpiled from
 `Source/Battlefield/Private/Tests` (the bodies are the originals; only the framework underneath changed), plus the
-12 `Bugfix` tests added for `features/01-bugfixes.md` (178 in total).
+12 tests added for `features/01-bugfixes.md` (178 in total), spread over the suites below.
 
 | Suite (name prefix) | Source file | Tests | Covers |
 |---|---|---|---|
 | `Hellmarch.Battlefield.Actor.*` | `ActorTests.cpp` | 39 | units on the grid, movement/AP budgets, damage/heal/death, status effects and their events |
-| `Hellmarch.Battlefield.Team.*` | `TeamTests.cpp` | 12 | turn rotation, who may act, refresh on turn start, defeat and winner |
+| `Hellmarch.Battlefield.Team.*` | `TeamTests.cpp` | 14 | turn rotation, who may act, refresh on turn start, defeat and winner |
 | `Hellmarch.Battlefield.Grid.*` | `GridTests.cpp` | 56 | bounds, tiles, grid↔world maths, neighbours, BFS and weighted paths, weighted distance/areas |
-| `Hellmarch.Battlefield.Controller.*` | `BattlefieldControllerTests.cpp` | 20 | spawn, move, attack, end turn, death removal, victory |
-| `Hellmarch.Battlefield.Query.*` | `BattlefieldQueryTests.cpp` | 22 | movement area, targets, visibility, line of sight, valid actions, winner |
+| `Hellmarch.Battlefield.Controller.*` | `BattlefieldControllerTests.cpp` | 28 | spawn, move, attack, end turn, death removal, victory |
+| `Hellmarch.Battlefield.Query.*` | `BattlefieldQueryTests.cpp` | 24 | movement area, targets, visibility, line of sight, valid actions, winner |
 | `Hellmarch.Battlefield.Flow.*` | `BattlefieldFlowTests.cpp` | 17 | start battle, full turn cycles, an AI-vs-AI simulation, every controller event |
-| `Hellmarch.Battlefield.Bugfix.*` | `BugfixTests.cpp` | 12 | move event payload, heal target rule, current-team check on actions, passing through allies, no-winner on mutual destruction, grid reuse across battles, `BattleHealEvent` alias |
 
 ## Running
 
