@@ -710,3 +710,89 @@ bool StartBattleCopiesUnitDataAttributesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Grunt has no attributes"), spawned[1]->GetAttributes().empty());
 	return true;
 }
+
+BATTLEFIELD_CONTROLLER_TEST(AttackRespectsMinRangeTest)
+
+bool AttackRespectsMinRangeTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* archer = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* adjacent = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+	FBaseUnit* far = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {7, 5});
+	archer->SetWeapons({TestsHelper::MakeWeapon("bow", 2, 2, 3, 2)});
+
+	const int32 ap = archer->GetActionPoints();
+	TestFalse(TEXT("Cannot hit the adjacent enemy"), controller.AttackUnitWithWeapon(archer, adjacent));
+	TestEqual(TEXT("Failed attack spends no AP"), archer->GetActionPoints(), ap);
+	TestEqual(TEXT("Adjacent enemy untouched"), adjacent->GetHealth(), adjacent->GetMaxHealth());
+
+	TestTrue(TEXT("Can hit the enemy at distance 2"), controller.AttackUnitWithWeapon(archer, far));
+	TestEqual(TEXT("Weapon AP cost is spent"), archer->GetActionPoints(), ap - 2);
+	TestTrue(TEXT("Damage dealt"), far->GetHealth() < far->GetMaxHealth());
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(AttackUsesEquippedWeaponDamageTest)
+
+bool AttackUsesEquippedWeaponDamageTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+	unit->SetWeapons({TestsHelper::MakeWeapon("dagger", 1, 1, 1), TestsHelper::MakeWeapon("axe", 1, 1, 4)});
+	unit->EquipWeapon(1);
+
+	TestTrue(TEXT("Attack with the axe"), controller.AttackUnitWithWeapon(unit, enemy));
+	TestEqual(TEXT("Axe damage"), enemy->GetMaxHealth() - enemy->GetHealth(), 4);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(UnarmedControllerAttackFailsTest)
+
+bool UnarmedControllerAttackFailsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+	unit->SetWeapons({});
+
+	TestFalse(TEXT("No weapon, no attack"), controller.AttackUnitWithWeapon(unit, enemy));
+	TestEqual(TEXT("Enemy untouched"), enemy->GetHealth(), enemy->GetMaxHealth());
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(StartBattleCopiesUnitDataWeaponsTest)
+
+bool StartBattleCopiesUnitDataWeaponsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+
+	std::vector<FBaseUnit*> spawned;
+	controller.OnUnitSpawned = [&](FBaseUnit* unit, const FGrid::FGridCoordinate&) { spawned.push_back(unit); };
+
+	FBattleController::FBattleStartData data;
+	FBattleController::FUnitData hero{
+		"Hero", ETeams::Player, TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+		TestsHelper::kCombatWeapon, {1, 1}
+	};
+	hero.weapons = {TestsHelper::MakeWeapon("sword", 1, 1), TestsHelper::MakeWeapon("bow", 2, 2)};
+	data.units.push_back(hero);
+	data.units.push_back({
+		"Grunt", ETeams::Enemy, TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+		TestsHelper::kCombatWeapon, {5, 5}
+	});
+
+	TestTrue(TEXT("Battle started"), controller.StartBattle(data));
+	TestEqual(TEXT("Two units"), static_cast<int32>(spawned.size()), 2);
+	if (spawned.size() != 2) return true;
+
+	TestEqual(TEXT("Hero has the two listed weapons"), static_cast<int32>(spawned[0]->GetWeapons().size()), 2);
+	TestEqual(TEXT("First weapon equipped"), spawned[0]->GetEquippedWeapon()->id, FName("sword"));
+	TestEqual(TEXT("Grunt keeps the legacy weapon only"), static_cast<int32>(spawned[1]->GetWeapons().size()), 1);
+	TestEqual(TEXT("Grunt legacy range"), spawned[1]->GetWeaponAttackRange(), TestsHelper::kCombatWeapon.range);
+	return true;
+}

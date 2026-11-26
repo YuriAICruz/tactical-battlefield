@@ -731,3 +731,105 @@ bool AttributesDoNotAffectCombatTest::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+ACTOR_TEST(LegacyWeaponBecomesIndexZeroTest)
+
+bool LegacyWeaponBecomesIndexZeroTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+
+	TestEqual(TEXT("One weapon"), static_cast<int32>(Actor->GetWeapons().size()), 1);
+	TestEqual(TEXT("Equipped index"), Actor->GetEquippedWeaponIndex(), 0);
+	const FWeaponDef* weapon = Actor->GetEquippedWeapon();
+	TestTrue(TEXT("Equipped weapon exists"), weapon != nullptr);
+	if (!weapon) return true;
+
+	TestEqual(TEXT("Damage"), weapon->baseDamage, TestsHelper::kCombatWeapon.baseDamage);
+	TestEqual(TEXT("AP cost"), weapon->apCost, TestsHelper::kCombatWeapon.baseCost);
+	TestEqual(TEXT("Min range"), weapon->minRange, 1);
+	TestEqual(TEXT("Max range"), weapon->maxRange, TestsHelper::kCombatWeapon.range);
+	TestEqual(TEXT("Legacy getter: damage"), Actor->GetWeaponBaseDamage(), TestsHelper::kCombatWeapon.baseDamage);
+	TestEqual(TEXT("Legacy getter: cost"), Actor->GetWeaponAttackCost(), TestsHelper::kCombatWeapon.baseCost);
+	TestEqual(TEXT("Legacy getter: range"), Actor->GetWeaponAttackRange(), TestsHelper::kCombatWeapon.range);
+	return true;
+}
+
+ACTOR_TEST(AddEquipRemoveWeaponTest)
+
+bool AddEquipRemoveWeaponTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	Actor->AddWeapon(TestsHelper::MakeWeapon("bow", 2, 2, 4, 2));
+	Actor->AddWeapon(TestsHelper::MakeWeapon("spear", 1, 2, 6, 3));
+
+	TestEqual(TEXT("Three weapons"), static_cast<int32>(Actor->GetWeapons().size()), 3);
+	TestEqual(TEXT("Still equipped index 0"), Actor->GetEquippedWeaponIndex(), 0);
+
+	TestTrue(TEXT("Equip bow"), Actor->EquipWeapon(1));
+	TestEqual(TEXT("Bow id"), Actor->GetEquippedWeapon()->id, FName("bow"));
+	TestEqual(TEXT("Bow min range"), Actor->GetWeaponMinRange(), 2);
+	TestEqual(TEXT("Bow max range"), Actor->GetWeaponAttackRange(), 2);
+	TestEqual(TEXT("Bow cost"), Actor->GetWeaponAttackCost(), 2);
+	TestEqual(TEXT("Bow damage"), Actor->GetWeaponBaseDamage(), 4);
+
+	TestFalse(TEXT("Equip out of range"), Actor->EquipWeapon(3));
+	TestFalse(TEXT("Equip negative"), Actor->EquipWeapon(-1));
+	TestEqual(TEXT("Failed equip keeps the bow"), Actor->GetEquippedWeaponIndex(), 1);
+
+	TestTrue(TEXT("Remove before equipped"), Actor->RemoveWeapon(0));
+	TestEqual(TEXT("Equipped index follows the bow"), Actor->GetEquippedWeaponIndex(), 0);
+	TestEqual(TEXT("Still the bow"), Actor->GetEquippedWeapon()->id, FName("bow"));
+
+	TestTrue(TEXT("Remove equipped"), Actor->RemoveWeapon(0));
+	TestEqual(TEXT("Falls back to index 0"), Actor->GetEquippedWeapon()->id, FName("spear"));
+
+	TestFalse(TEXT("Remove out of range"), Actor->RemoveWeapon(5));
+	return true;
+}
+
+ACTOR_TEST(UnarmedUnitCannotAttackTest)
+
+bool UnarmedUnitCannotAttackTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	TestTrue(TEXT("Armed unit can attack"), Actor->CanAttack());
+	Actor->RemoveWeapon(0);
+
+	TestTrue(TEXT("No weapon equipped"), Actor->GetEquippedWeapon() == nullptr);
+	TestFalse(TEXT("Cannot attack"), Actor->CanAttack());
+	TestFalse(TEXT("Nothing in range"), Actor->InRange({0, 0}, {1, 0}));
+	TestEqual(TEXT("Zero range"), Actor->GetWeaponAttackRange(), 0);
+	TestEqual(TEXT("Zero cost"), Actor->GetWeaponAttackCost(), 0);
+	return true;
+}
+
+ACTOR_TEST(WeaponRangeBandInRangeTest)
+
+bool WeaponRangeBandInRangeTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	Actor->SetWeapons({TestsHelper::MakeWeapon("bow", 2, 3)});
+
+	TestFalse(TEXT("Distance 1 is too close"), Actor->InRange({0, 0}, {1, 0}));
+	TestTrue(TEXT("Distance 2"), Actor->InRange({0, 0}, {2, 0}));
+	TestTrue(TEXT("Distance 3"), Actor->InRange({0, 0}, {1, 2}));
+	TestFalse(TEXT("Distance 4 is too far"), Actor->InRange({0, 0}, {4, 0}));
+	return true;
+}
+
+ACTOR_TEST(WeaponOpaqueDataIsStoredTest)
+
+bool WeaponOpaqueDataIsStoredTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	FWeaponDef sword = TestsHelper::MakeWeapon("sword", 1, 1);
+	sword.typeTag = 7;
+	sword.properties = {{"might", 5}, {"weight", 3}};
+	Actor->SetWeapons({sword});
+
+	const FWeaponDef* weapon = Actor->GetEquippedWeapon();
+	TestEqual(TEXT("typeTag"), weapon->typeTag, 7);
+	TestEqual(TEXT("might"), weapon->properties.at("might"), 5);
+	TestEqual(TEXT("weight"), weapon->properties.at("weight"), 3);
+	return true;
+}
