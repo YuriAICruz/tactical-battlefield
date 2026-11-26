@@ -2,6 +2,7 @@
 #include "Platform/CoreTypes.h"
 #include "BattleQueries.h"
 #include "Core/BattlefieldData.h"
+#include "Events/AttackResult.h"
 #include "Events/BattleAttackEvent.h"
 #include "Events/BattleDamageEvent.h"
 #include "Events/BattleHealedEvent.h"
@@ -49,6 +50,13 @@ public:
 	std::function<void(const FBaseUnit*, uint8)> OnStatusRemoved;
 	std::function<void(const FBaseUnit*, uint8)> OnStatusTriggered;
 
+	// Attack resolve hook: lets the client decide damage, hit and crit of AttackUnitWithWeapon. When unset the
+	// built-in distance/aim formula is used (always a hit).
+	// RULE: the hook (and PreviewAttack) may only call read-only queries. It must not move, spawn, attack,
+	// heal, wait or end turns on this controller (asserted in debug builds). It must be pure for previews:
+	// no RNG is consumed by the DLL, so any randomness belongs to the client.
+	std::function<FAttackResult(FBaseUnit& attacker, FBaseUnit& target, const FWeaponDef& weapon)> OnResolveAttack;
+
 	FBattleController(FGrid* grid);
 
 	FBaseUnit* SpawnUnit(ETeams team,
@@ -62,6 +70,9 @@ public:
 	bool MoveUnit(FBaseUnit* Unit, FGrid::FGridCoordinate Destination) const;
 	bool MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate destination, int32 cost) const;
 	bool AttackUnitWithWeapon(FBaseUnit* attacker, FBaseUnit* target) const;
+	// Forecast of AttackUnitWithWeapon: the result the hook (or the default formula) gives, nothing is applied
+	// and no event fires. Does not check team, AP or range. Unarmed or null units give {0, hit=false}.
+	FAttackResult PreviewAttack(FBaseUnit* attacker, FBaseUnit* target) const;
 	bool AttackUnitRaw(FBaseUnit* healer, FBaseUnit* target, int32 range, int32 cost, int32 damage) const;
 	bool HealUnitRaw(FBaseUnit* attacker, FBaseUnit* target, int32 range, int32 cost, int32 value) const;
 	int32 GetTurnNumber() const;
@@ -84,6 +95,9 @@ public:
 
 private:
 	void UnitDied(const FBaseUnit* target) const;
+	FAttackResult ResolveAttack(FBaseUnit* attacker, FBaseUnit* target, const FWeaponDef& weapon) const;
+
+	mutable bool mResolvingAttack = false; // true while OnResolveAttack runs (re-entrancy guard)
 
 	int32 mTurnCount = 0;
 	FBattleQueries mQueries;

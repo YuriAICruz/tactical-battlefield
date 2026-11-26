@@ -19,6 +19,7 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
                                         const std::map<FName, int32>& attributes,
                                         const std::vector<FWeaponDef>& weapons)
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (mpGrid->IsBlocked(position))
 	{
 		BF_LOG(Error, "FBattleController/SpawnUnit: Failed To Spawn position (%d, %d) blocked",
@@ -101,6 +102,7 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
 
 bool FBattleController::MoveUnit(FBaseUnit* unit, FGrid::FGridCoordinate destination) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!mTeamSystem.CanAct(unit))
 	{
 		return false;
@@ -127,6 +129,7 @@ bool FBattleController::MoveUnit(FBaseUnit* unit, FGrid::FGridCoordinate destina
 
 bool FBattleController::MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate destination, int32 cost) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!mTeamSystem.CanAct(unit))
 	{
 		return false;
@@ -152,6 +155,7 @@ bool FBattleController::MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate dest
 
 bool FBattleController::AttackUnitWithWeapon(FBaseUnit* attacker, FBaseUnit* target) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!attacker || !target)
 	{
 		return false;
@@ -178,19 +182,63 @@ bool FBattleController::AttackUnitWithWeapon(FBaseUnit* attacker, FBaseUnit* tar
 	{
 		return false;
 	}
-	int32 damage = attacker->CalculateWeaponAttackDamage(attackerPos, targetPos);
+	const FWeaponDef* weapon = attacker->GetEquippedWeapon();
+	if (!weapon)
+	{
+		return false;
+	}
+
+	const FAttackResult result = ResolveAttack(attacker, target, *weapon);
+	const int32 damage = result.hit ? std::max(result.damage, 0) : 0;
+	// A miss (or 0 damage) never reaches ReceiveDamage, so OnUnitDamaged does not fire.
 	target->ReceiveDamage(damage);
 	attacker->SpendActionPoints(cost);
 
 	if (OnUnitDidAttacked)
 	{
-		OnUnitDidAttacked({attacker, target, damage});
+		OnUnitDidAttacked({attacker, target, damage, result.hit, result.critical, result.userValue});
 	}
 	return true;
 }
 
+FAttackResult FBattleController::ResolveAttack(FBaseUnit* attacker, FBaseUnit* target,
+                                               const FWeaponDef& weapon) const
+{
+	if (!OnResolveAttack)
+	{
+		FAttackResult result;
+		result.damage = attacker->CalculateWeaponAttackDamage(mpGrid->GetUnitPosition(attacker),
+		                                                      mpGrid->GetUnitPosition(target));
+		return result;
+	}
+
+	assert(!mResolvingAttack && "OnResolveAttack must not trigger another attack resolution");
+	mResolvingAttack = true;
+	const FAttackResult result = OnResolveAttack(*attacker, *target, weapon);
+	mResolvingAttack = false;
+	return result;
+}
+
+FAttackResult FBattleController::PreviewAttack(FBaseUnit* attacker, FBaseUnit* target) const
+{
+	FAttackResult none;
+	none.hit = false;
+	if (!attacker || !target)
+	{
+		return none;
+	}
+
+	const FWeaponDef* weapon = attacker->GetEquippedWeapon();
+	if (!weapon)
+	{
+		return none;
+	}
+	return ResolveAttack(attacker, target, *weapon);
+}
+
 bool FBattleController::AttackUnitRaw(FBaseUnit* healer, FBaseUnit* target, int32 range, int32 cost, int32 damage) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!healer || !target)
 	{
 		return false;
@@ -228,6 +276,7 @@ bool FBattleController::AttackUnitRaw(FBaseUnit* healer, FBaseUnit* target, int3
 
 bool FBattleController::HealUnitRaw(FBaseUnit* attacker, FBaseUnit* target, int32 range, int32 cost, int32 value) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!attacker || !target)
 	{
 		return false;
@@ -333,6 +382,7 @@ bool FBattleController::DoUnitAction(FBaseUnit* unit) const
 
 bool FBattleController::WaitUnit(FBaseUnit* unit) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!unit || !unit->IsAlive() || unit->HasWaited())
 	{
 		return false;
@@ -390,6 +440,7 @@ bool FBattleController::StartBattle(const FBattleStartData& data)
 
 void FBattleController::EndTurn()
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (OnTurnEnded)
 	{
 		OnTurnEnded(mTeamSystem.GetCurrentTeam());
