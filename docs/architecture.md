@@ -18,6 +18,7 @@ the controller, and the controller is the only place where the pieces are combin
 | `FTeamSystem` | `Core/TeamSystem.h` | Current team, rotation, per-turn resource refresh (also clears the wait flag), "can this unit act now" (optionally rejecting units that waited, `SetRequireWait`), defeat/winner detection, unit id generation. |
 | `FTroupe` | `Core/Troupe.h` | Owns the units of one team (`unique_ptr`), creates them (`CreateActor<T>`) and registers them in the team system. |
 | `FBattlefieldData` | `Core/BattlefieldData.h` | The three troupes (Player, Enemy, Neutral). |
+| `FAttackResult` | `Events/AttackResult.h` | `{damage, hit, critical, userValue}` returned by the client's `FBattleController::OnResolveAttack` hook; also what `PreviewAttack` returns. |
 | `FBattleQueries` | `Core/BattleQueries.h` | Read-only questions about the battle (incl. `GetAttackArea` and `GetAttackableTargetsFrom` for weapon range bands). Obtained from `FBattleController::GetQueryController()`. |
 | `FBattleController` | `Core/BattleController.h` | Mutating operations + all battle-level events. Owns the troupes and team system, borrows the grid. |
 | `FGridMath` | `Math/GridMath.h` | Grid ↔ world coordinate conversion (plain, centred, with offset). |
@@ -43,7 +44,7 @@ All events are `std::function` members that may be left empty.
 | Controller | `OnTurnStarted`, `OnTurnEnded` | team |
 | Controller | `OnUnitSpawned` | unit, tile |
 | Controller | `OnUnitMoved` | `FBattleMoveEvent{Unit, From, To}` |
-| Controller | `OnUnitDidAttacked` | `FBattleAttackEvent{Attacker, Target, Damage}` |
+| Controller | `OnUnitDidAttacked` | `FBattleAttackEvent{Attacker, Target, Damage, Hit, Critical, UserValue}` (the last three come from `FAttackResult`; `Hit=false` is a miss) |
 | Controller | `OnUnitDidHealed` | `FBattleHealEvent{Attacker, Target, Value}` (`BattleHealEvent` kept as a deprecated alias for one release) |
 | Controller | `OnUnitDamaged` / `OnUnitHealed` | `FBattleDamageEvent` / `FBattleHealedEvent` |
 | Controller | `OnUnitDied`, `OnUnitActionPerformed`, `OnUnitWaited` | unit |

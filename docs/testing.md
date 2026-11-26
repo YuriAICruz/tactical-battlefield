@@ -4,14 +4,14 @@
 
 `BattlefieldTests.dll` contains the 166 automation tests of the Unreal module, transpiled from
 `Source/Battlefield/Private/Tests` (the bodies are the originals; only the framework underneath changed), plus the
-12 tests added for `features/01-bugfixes.md`, 7 for `features/02-unit-attributes.md` 6 for `features/03-tile-tags.md` and 10 for `features/04-unit-turn-state.md` and 18 for `features/05-weapon-definitions.md` (219 in total), spread over the suites below.
+12 tests added for `features/01-bugfixes.md`, 7 for `features/02-unit-attributes.md` 6 for `features/03-tile-tags.md` and 10 for `features/04-unit-turn-state.md` 18 for `features/05-weapon-definitions.md` and 11 for `features/06-attack-resolve-hook.md` (230 in total), spread over the suites below.
 
 | Suite (name prefix) | Source file | Tests | Covers |
 |---|---|---|---|
 | `Hellmarch.Battlefield.Actor.*` | `ActorTests.cpp` | 48 | units on the grid, movement/AP budgets, damage/heal/death, status effects and their events, attribute bag, tag and name, weapon list and range bands |
 | `Hellmarch.Battlefield.Team.*` | `TeamTests.cpp` | 14 | turn rotation, who may act, refresh on turn start, defeat and winner |
 | `Hellmarch.Battlefield.Grid.*` | `GridTests.cpp` | 62 | bounds, tiles, tile tags, grid↔world maths, neighbours, BFS and weighted paths, weighted distance/areas |
-| `Hellmarch.Battlefield.Controller.*` | `BattlefieldControllerTests.cpp` | 35 | spawn (incl. name/attribute/weapon copy), move, attack (incl. range bands), end turn, death removal, victory |
+| `Hellmarch.Battlefield.Controller.*` | `BattlefieldControllerTests.cpp` | 46 | spawn (incl. name/attribute/weapon copy), move, attack (incl. range bands, resolve hook, preview), end turn, death removal, victory |
 | `Hellmarch.Battlefield.Query.*` | `BattlefieldQueryTests.cpp` | 33 | movement area, targets, attack area, visibility, line of sight, valid actions, winner |
 | `Hellmarch.Battlefield.Flow.*` | `BattlefieldFlowTests.cpp` | 27 | start battle, full turn cycles, an AI-vs-AI simulation, every controller event, unit wait state |
 

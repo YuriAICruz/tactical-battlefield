@@ -96,6 +96,8 @@ Damage: `distance = max(1, manhattan)`, `multiplier = min(1, aim / distance)` us
 Order of events for a successful attack: `OnUnitDamaged` → (if lethal) the tile is cleared, `OnUnitDied`, and when a
 team is wiped out `OnWinnerDeclared` then `OnBattleEnded` → AP is spent → `OnUnitDidAttacked`.
 
+**Resolve hook.** If `FBattleController::OnResolveAttack(attacker, target, weapon)` is set, its `FAttackResult` replaces the formula above: `hit=false` is a miss (AP is spent, `OnUnitDidAttacked` fires with damage 0 and `Hit=false`, no `OnUnitDamaged`); otherwise `damage` (negative clamped to 0) is applied through the normal path. `critical` and `userValue` are only forwarded in the event. The hook runs after all validation, so it is never called for an illegal attack. **The hook must not mutate the battle** (move, spawn, attack, heal, wait, end turn): read-only queries only, asserted in debug builds. `PreviewAttack(attacker, target)` runs the same hook (or formula) without applying anything, for forecasts; the DLL never rolls RNG, so randomness stays in the client.
+
 `AttackUnitRaw(attacker, target, range, cost, damage)` and `HealUnitRaw(...)` do the same with caller-supplied
 numbers (scripted/ability effects). `HealUnitRaw` requires a **friendly** (non-hostile) target; healing an enemy is
 rejected and spends nothing. `DoUnitAction(unit)` requires the unit to be on the current team, spends the unit's action
