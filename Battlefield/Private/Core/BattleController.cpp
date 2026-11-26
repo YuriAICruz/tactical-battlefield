@@ -16,7 +16,8 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
                                         const FBaseUnit::FCombatWeapon& weapon,
                                         FGrid::FGridCoordinate position,
                                         const FName& name,
-                                        const std::map<FName, int32>& attributes)
+                                        const std::map<FName, int32>& attributes,
+                                        const std::vector<FWeaponDef>& weapons)
 {
 	if (mpGrid->IsBlocked(position))
 	{
@@ -35,6 +36,10 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
 	}
 
 	unit->SetName(name);
+	if (!weapons.empty())
+	{
+		unit->SetWeapons(weapons);
+	}
 	for (const auto& [attrName, attrValue] : attributes)
 	{
 		unit->SetAttribute(attrName, attrValue);
@@ -368,7 +373,7 @@ bool FBattleController::StartBattle(const FBattleStartData& data)
 			return false;
 		}
 		FBaseUnit* createdUnit = SpawnUnit(unit.team, unit.combatStats, unit.turnResources, unit.weapon, unit.position,
-		                                      unit.name, unit.attributes);
+		                                      unit.name, unit.attributes, unit.weapons);
 		if (!createdUnit)
 		{
 			BF_LOG(Error, "FBattleController/StartBattle: Failed To create Unit");

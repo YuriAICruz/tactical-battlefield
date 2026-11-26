@@ -31,6 +31,13 @@ public:
 	bool AllUnitsWaited(ETeams team) const;
 	FBaseUnit* GetUnitAt(FGrid::FGridCoordinate position) const;
 	void GetAttackableTargets(const FBaseUnit* unit, std::vector<const FGridEntity*>& targets) const;
+	// Units of the opposing team the unit could hit if it stood on `tile` with its equipped weapon.
+	void GetAttackableTargetsFrom(const FBaseUnit* unit, FGrid::FGridCoordinate tile,
+	                              std::vector<const FGridEntity*>& targets) const;
+	// Tiles (inside the grid) with minRange <= distance <= maxRange from `fromTile` for the equipped weapon.
+	// Empty when the unit has no weapon. Ignores units and blocked tiles (it is a threat/overlay area).
+	void GetAttackArea(const FBaseUnit* unit, FGrid::FGridCoordinate fromTile,
+	                   std::vector<FGrid::FGridCoordinate>& area) const;
 	void GetVisibleUnits(const FBaseUnit* unit, std::vector<const FGridEntity*>& units, ETeams filterMask) const;
 	bool HasLineOfSight(const FBaseUnit* unit, FGrid::FGridCoordinate target) const;
 	void GetVisionRange(FGrid::FGridCoordinate origin, int range, std::vector<FGrid::FGridCoordinate>& vision,

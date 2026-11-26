@@ -4,6 +4,7 @@
 #include "Enums/Teams.h"
 #include "StatusEffects/BaseStatusEffect.h"
 #include "Grid.h"
+#include "Core/Weapon.h"
 #include <functional>
 #include <memory>
 
@@ -80,7 +81,8 @@ public:
 	bool InRange(FGrid::FGridCoordinate position, FGrid::FGridCoordinate targetPosition) const;
 	int32 GetWeaponAttackCost() const;
 	int32 GetWeaponBaseDamage() const;
-	int32 GetWeaponAttackRange() const;
+	int32 GetWeaponAttackRange() const; // max range of the equipped weapon (0 when unarmed)
+	int32 GetWeaponMinRange() const; // min range of the equipped weapon (0 when unarmed)
 	int32 GetVisionRange() const;
 
 	// passThroughAllies: allies on the way can be crossed, but a destination holding any unit still returns -1.
@@ -123,6 +125,18 @@ public:
 	bool HasAttribute(const FName& name) const;
 	const std::map<FName, int32>& GetAttributes() const;
 
+	// Weapons: a unit owns a list and one is equipped. A legacy FCombatWeapon becomes the weapon at index 0.
+	// Bad indexes return false. Removing the equipped weapon equips index 0 (if any is left).
+	void AddWeapon(const FWeaponDef& weapon);
+	bool RemoveWeapon(int32 index);
+	const std::vector<FWeaponDef>& GetWeapons() const;
+	bool EquipWeapon(int32 index);
+	int32 GetEquippedWeaponIndex() const;
+	// nullptr when the unit has no weapon.
+	const FWeaponDef* GetEquippedWeapon() const;
+	// Replaces the whole list and equips index 0.
+	void SetWeapons(const std::vector<FWeaponDef>& weapons);
+
 	// Free-form class/archetype label. Not interpreted.
 	const FName& GetTag() const;
 	void SetTag(const FName& tag);
@@ -142,7 +156,8 @@ private:
 	FCombatStats mBaseCombatStats;
 	FTurnResources mBaseTurnResources;
 	FTurnResources mCurrentTurnResources;
-	FCombatWeapon mCurrentCombatWeapon;
+	std::vector<FWeaponDef> mWeapons;
+	int32 mEquippedWeapon = 0;
 	std::map<FName, int32> mAttributes;
 	FName mTag;
 	FName mName;

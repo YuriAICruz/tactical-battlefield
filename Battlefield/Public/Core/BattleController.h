@@ -20,6 +20,7 @@ public:
 		FBaseUnit::FCombatWeapon weapon;
 		FGrid::FGridCoordinate position;
 		std::map<FName, int32> attributes; // optional, copied onto the unit at spawn
+		std::vector<FWeaponDef> weapons; // optional; when not empty it replaces `weapon` (index 0 is equipped)
 	};
 
 	struct BATTLEFIELD_API FBattleStartData
@@ -56,7 +57,8 @@ public:
 	                     const FBaseUnit::FCombatWeapon& weapon,
 	                     FGrid::FGridCoordinate position,
 	                     const FName& name = FName(),
-	                     const std::map<FName, int32>& attributes = {});
+	                     const std::map<FName, int32>& attributes = {},
+	                     const std::vector<FWeaponDef>& weapons = {});
 	bool MoveUnit(FBaseUnit* Unit, FGrid::FGridCoordinate Destination) const;
 	bool MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate destination, int32 cost) const;
 	bool AttackUnitWithWeapon(FBaseUnit* attacker, FBaseUnit* target) const;
