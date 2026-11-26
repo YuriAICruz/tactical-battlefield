@@ -42,9 +42,9 @@ All events are `std::function` members that may be left empty.
 | Controller | `OnBattleStarted`, `OnBattleEnded`, `OnWinnerDeclared` | start data / winning team |
 | Controller | `OnTurnStarted`, `OnTurnEnded` | team |
 | Controller | `OnUnitSpawned` | unit, tile |
-| Controller | `OnUnitMoved` | `FBattleMoveEvent{To}` |
+| Controller | `OnUnitMoved` | `FBattleMoveEvent{Unit, From, To}` |
 | Controller | `OnUnitDidAttacked` | `FBattleAttackEvent{Attacker, Target, Damage}` |
-| Controller | `OnUnitDidHealed` | `BattleHealEvent{Attacker, Target, Value}` |
+| Controller | `OnUnitDidHealed` | `FBattleHealEvent{Attacker, Target, Value}` (`BattleHealEvent` kept as a deprecated alias for one release) |
 | Controller | `OnUnitDamaged` / `OnUnitHealed` | `FBattleDamageEvent` / `FBattleHealedEvent` |
 | Controller | `OnUnitDied`, `OnUnitActionPerformed` | unit |
 | Controller | `OnStatusAdded/Removed/Triggered` | unit, status type |

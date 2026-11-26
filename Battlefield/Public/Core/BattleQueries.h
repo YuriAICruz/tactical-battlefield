@@ -18,7 +18,8 @@ public:
 	{
 	}
 
-	void GetMovementArea(const FBaseUnit* unit, std::vector<FGrid::FGridCoordinate>& neighbours) const;
+	void GetMovementArea(const FBaseUnit* unit, std::vector<FGrid::FGridCoordinate>& neighbours,
+	                     bool passThroughAllies = false) const;
 	bool HasWinner() const;
 	ETeams GetWinner() const;
 	ETeams GetCurrentTeam() const;

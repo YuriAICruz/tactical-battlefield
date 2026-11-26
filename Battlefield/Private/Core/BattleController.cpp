@@ -93,17 +93,18 @@ bool FBattleController::MoveUnit(FBaseUnit* unit, FGrid::FGridCoordinate destina
 		return false;
 	}
 
-	int32 cost = unit->GetMovementCost(mpGrid, destination);
+	int32 cost = unit->GetMovementCost(mpGrid, destination, true);
 	if (cost < 0 || !unit->CanMove(cost))
 	{
 		return false;
 	}
+	const FGrid::FGridCoordinate from = mpGrid->GetUnitPosition(unit);
 	if (mpGrid->MoveUnitToTile(destination, unit))
 	{
 		unit->SpendMovementPoints(cost);
 		if (OnUnitMoved)
 		{
-			OnUnitMoved({destination});
+			OnUnitMoved({unit, from, destination});
 		}
 		return true;
 	}
@@ -122,12 +123,13 @@ bool FBattleController::MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate dest
 	{
 		return false;
 	}
+	const FGrid::FGridCoordinate from = mpGrid->GetUnitPosition(unit);
 	if (mpGrid->MoveUnitToTile(destination, unit))
 	{
 		unit->SpendMovementPoints(cost);
 		if (OnUnitMoved)
 		{
-			OnUnitMoved({destination});
+			OnUnitMoved({unit, from, destination});
 		}
 		return true;
 	}
@@ -218,7 +220,7 @@ bool FBattleController::HealUnitRaw(FBaseUnit* attacker, FBaseUnit* target, int3
 		return false;
 	}
 
-	if (!TeamSystemHelper::IsHostile(attacker, target))
+	if (TeamSystemHelper::IsHostile(attacker, target))
 	{
 		return false;
 	}
@@ -297,6 +299,11 @@ bool FBattleController::HasStatus(FBaseUnit* unit, uint8 statusId)
 
 bool FBattleController::DoUnitAction(FBaseUnit* unit) const
 {
+	if (!mTeamSystem.CanAct(unit))
+	{
+		return false;
+	}
+
 	int32 cost = unit->GetActionCost();
 	if (!unit->CanDoAction(cost))
 	{
@@ -314,6 +321,7 @@ bool FBattleController::DoUnitAction(FBaseUnit* unit) const
 bool FBattleController::StartBattle(const FBattleStartData& data)
 {
 	mBattlefield.Clear();
+	mpGrid->ClearUnits();
 	for (auto unit : data.units)
 	{
 		if (unit.team == ETeams::Null || unit.team == ETeams::Length)

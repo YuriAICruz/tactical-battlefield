@@ -83,7 +83,8 @@ public:
 	int32 GetWeaponAttackRange() const;
 	int32 GetVisionRange() const;
 
-	int32 GetMovementCost(const FGrid* grid, FGrid::FGridCoordinate destination) const;
+	// passThroughAllies: allies on the way can be crossed, but a destination holding any unit still returns -1.
+	int32 GetMovementCost(const FGrid* grid, FGrid::FGridCoordinate destination, bool passThroughAllies = false) const;
 	virtual bool CanMove(int32 cost = 1) const override;
 
 	bool CanDoAction(int32 cost = 1) const;

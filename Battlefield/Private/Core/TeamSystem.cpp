@@ -126,7 +126,13 @@ ETeams FTeamSystem::GetWinner() const
 	const bool bPlayerDefeated = IsTeamDefeated(ETeams::Player);
 	const bool bEnemyDefeated = IsTeamDefeated(ETeams::Enemy);
 
-	if (bEnemyDefeated && !bPlayerDefeated)
+	if (bPlayerDefeated && bEnemyDefeated)
+	{
+		// Mutual destruction: nobody won
+		return ETeams::Null;
+	}
+
+	if (bEnemyDefeated)
 	{
 		return ETeams::Player;
 	}

@@ -1,9 +1,9 @@
 #pragma once
 #include "Platform/CoreTypes.h"
+#include "Enums/Teams.h"
 #include <unordered_map>
 #include <vector>
 
-enum class ETeams : uint8;
 class FGridEntity;
 
 class BATTLEFIELD_API FGrid
@@ -93,10 +93,13 @@ public:
 	const FTileData* TryGetTile(const FGridCoordinate& coord) const;
 	void GetNeighbours(const FGridCoordinate& coord, std::vector<FGridCoordinate>& neighbours, uint16_t size = 1,
 	                   bool bIncludeCenter = false) const;
+	// passThroughTeam: when not Null (and checkBlockedTiles is set), units of that team can be crossed but the
+	// search never ends on them. Null keeps every unit blocking.
 	void GetWeightedNeighbours(const FGridCoordinate& coord, std::vector<FGridCoordinate>& neighbours,
-	                           uint16 size, bool checkBlockedTiles) const;
+	                           uint16 size, bool checkBlockedTiles, ETeams passThroughTeam = ETeams::Null) const;
 	int32 GetDistance(FGridCoordinate origin, FGridCoordinate destination) const;
-	int32 GetWeightedDistance(FGridCoordinate Start, FGridCoordinate Destination, bool checkBlockedTiles) const;
+	int32 GetWeightedDistance(FGridCoordinate Start, FGridCoordinate Destination, bool checkBlockedTiles,
+	                          ETeams passThroughTeam = ETeams::Null) const;
 	bool HasLineOfSight(const FGridCoordinate& start, const FGridCoordinate& end, bool checkBlockedTiles) const;
 	void GetVisibleTiles(const FGridCoordinate& origin, int32 range, std::vector<FGridCoordinate>& visibleTiles, bool checkBlockedTiles) const;
 	bool GetPath(const FGridCoordinate& start, const FGridCoordinate& end, uint16 size,
@@ -109,6 +112,8 @@ public:
 	                    ETeams filterMask) const;
 	bool MoveUnitToTile(const FGridCoordinate& coord, FGridEntity* actor);
 	void RemoveUnitFromTile(const FGridEntity* target);
+	// Drops every unit from the grid (tiles and position map). Tile weights are kept.
+	void ClearUnits();
 	void SetTileWeight(int32 x, int32 y, int8_t weight);
 
 private:
@@ -154,5 +159,6 @@ private:
 
 	template <class TGoalPredicate, class THeuristic>
 	bool RunWeightedSearch(const FGridCoordinate& start, uint16 maxCost, TGoalPredicate&& goalPredicate,
-	                       THeuristic&& heuristic, bool checkBlockedTiles = true) const;
+	                       THeuristic&& heuristic, bool checkBlockedTiles = true,
+	                       ETeams passThroughTeam = ETeams::Null) const;
 };
