@@ -225,3 +225,42 @@ bool PoisonTicksOnTurnStartTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Stun tick count"), effect->GetTicksApplied(), 1);
 	return true;
 }
+
+TEAM_TEST(MutualDestructionHasNoWinnerTest)
+
+bool MutualDestructionHasNoWinnerTest::RunTest(const FString& Parameters)
+{
+	FTeamSystem teamSystem;
+	FTroupe troupe(&teamSystem);
+	FBaseUnit* player = troupe.CreateActor<FUnit>(TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+	                                              TestsHelper::kCombatWeapon, ETeams::Player);
+	FBaseUnit* enemy = troupe.CreateActor<FUnit>(TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+	                                             TestsHelper::kCombatWeapon, ETeams::Enemy);
+
+	player->ReceiveDamage(TestsHelper::kBaseCombatStats.health);
+	enemy->ReceiveDamage(TestsHelper::kBaseCombatStats.health);
+
+	TestTrue(TEXT("Battle is over"), teamSystem.HasWinner());
+	TestEqual(TEXT("Nobody wins"), teamSystem.GetWinner(), ETeams::Null);
+
+	return true;
+}
+
+TEAM_TEST(EnemyVictoryTest)
+
+bool EnemyVictoryTest::RunTest(const FString& Parameters)
+{
+	FTeamSystem teamSystem;
+	FTroupe troupe(&teamSystem);
+	FBaseUnit* player = troupe.CreateActor<FUnit>(TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+	                                              TestsHelper::kCombatWeapon, ETeams::Player);
+	troupe.CreateActor<FUnit>(TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+	                          TestsHelper::kCombatWeapon, ETeams::Enemy);
+
+	player->ReceiveDamage(TestsHelper::kBaseCombatStats.health);
+
+	TestTrue(TEXT("Battle is over"), teamSystem.HasWinner());
+	TestEqual(TEXT("Enemy wins"), teamSystem.GetWinner(), ETeams::Enemy);
+
+	return true;
+}

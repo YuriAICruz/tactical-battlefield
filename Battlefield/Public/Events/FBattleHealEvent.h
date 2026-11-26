@@ -4,10 +4,10 @@
 
 class FBaseUnit;
 
-class BattleHealEvent : public FBaseEvent
+class FBattleHealEvent : public FBaseEvent
 {
 public:
-	BattleHealEvent(const FBaseUnit* attacker, const FBaseUnit* target, int32 value) :
+	FBattleHealEvent(const FBaseUnit* attacker, const FBaseUnit* target, int32 value) :
 		Attacker(attacker),
 		Target(target),
 		Value(value)
@@ -18,3 +18,6 @@ public:
 	const FBaseUnit* Target;
 	int32 Value;
 };
+
+// Deprecated alias kept for one release; use FBattleHealEvent.
+using BattleHealEvent = FBattleHealEvent;

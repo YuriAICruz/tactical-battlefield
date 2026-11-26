@@ -69,10 +69,17 @@ cancelled. Its tick counter is readable through `GetTicksApplied()`.
 3. the unit is alive and has at least `c` movement points (and at least 1 for the grid step itself),
 4. the destination tile is free (or already the unit's own tile).
 
-On success the unit is relocated, `c` movement points are spent and `OnUnitMoved{To}` is raised.
+The cost is computed with `passThroughAllies`: tiles held by **allies** can be crossed (they still cost movement)
+but never stopped on, so a unit can reach a free tile behind a friend. Enemies always block. A destination holding any
+unit costs `-1`.
+
+On success the unit is relocated, `c` movement points are spent and `OnUnitMoved{Unit, From, To}` is raised
+(`Unit` is the mover, `From` the tile it left, `To` the destination).
 `MoveUnitRaw` skips the path computation and uses a caller-supplied cost.
 `FBattleQueries::GetMovementArea` returns every tile reachable with the unit's current movement points,
-including its own tile.
+including its own tile. The optional `passThroughAllies` argument (default `false`) lets the search cross tiles held by
+allied units; those tiles are crossed but never listed. `FBaseUnit::GetMovementCost` and
+`GetWeightedNeighbours`/`GetWeightedDistance` on `FGrid` take the same option (as a pass-through team).
 
 ## 6. Attacking
 
@@ -90,19 +97,22 @@ Order of events for a successful attack: `OnUnitDamaged` → (if lethal) the til
 team is wiped out `OnWinnerDeclared` then `OnBattleEnded` → AP is spent → `OnUnitDidAttacked`.
 
 `AttackUnitRaw(attacker, target, range, cost, damage)` and `HealUnitRaw(...)` do the same with caller-supplied
-numbers (scripted/ability effects). `DoUnitAction(unit)` spends the unit's action cost (currently always 1 AP) and
-raises `OnUnitActionPerformed`.
+numbers (scripted/ability effects). `HealUnitRaw` requires a **friendly** (non-hostile) target; healing an enemy is
+rejected and spends nothing. `DoUnitAction(unit)` requires the unit to be on the current team, spends the unit's action
+cost (currently always 1 AP) and raises `OnUnitActionPerformed`.
 
 ## 7. Victory
 
 * A team is **defeated** when it has no living unit (a team that never had units is defeated too).
 * `HasWinner()` is true when the Player **or** the Enemy team is defeated; Neutral is ignored.
-* `GetWinner()` is `Player` if the Enemy is defeated and the Player is not, otherwise `Enemy`.
+* `GetWinner()` is `Player` if the Enemy is defeated and the Player is not, `Null` if both are defeated (mutual
+  destruction), otherwise `Enemy`.
 * The controller raises `OnWinnerDeclared` and `OnBattleEnded` from the moment a death produces a winner.
 
 ## 8. Starting a battle
 
-`StartBattle(FBattleStartData)` clears the troupes and spawns every `FUnitData` (name, team, stats, resources,
+`StartBattle(FBattleStartData)` clears the troupes **and every unit from the grid** (so the same `FGrid` can be reused
+for a new battle; tile weights are kept) and spawns every `FUnitData` (name, team, stats, resources,
 weapon, tile). It fails (returns `false`, no `OnBattleStarted`) as soon as a unit has team `Null`/`Length`, its tile
 is blocked/occupied/off-board, or creation fails. `SpawnUnit` can also be used on its own.
 
@@ -124,14 +134,9 @@ is blocked/occupied/off-board, or creation fails. `SpawnUnit` can also be used o
 ## 10. Known placeholders and quirks (kept from the Unreal module)
 
 These behaviours were transpiled as-is; they are documented rather than silently "fixed" so the DLL matches the
-original game logic. Candidates for a future clean-up:
+original game logic. Candidates for a future clean-up (the other quirks of the original were fixed, see `features/01-bugfixes.md`):
 
 1. `armor` and `dodge` are stored but not used by any formula.
 2. `ApplyStatus` / `RemoveStatus` check the attacker's **AP** but spend **movement** points.
-3. `HealUnitRaw` requires the target to be *hostile* (copy of the attack check), so it can only heal enemies.
-4. `DoUnitAction` is not restricted to the current team, and `GetActionCost()/DoAction()` are stubs (cost 1).
-5. `GetVisibleUnits` computes a line-of-sight list first but then overwrites it with the weighted-area result, so
+3. `GetVisibleUnits` computes a line-of-sight list first but then overwrites it with the weighted-area result, so
    effectively only the area test decides.
-6. `FBattleMoveEvent` only carries the destination, not the unit or origin.
-7. `FBattleController::StartBattle` clears the troupes but not the grid, so reusing one grid for a second battle
-   leaves stale occupancy (tiles pointing at destroyed units); create a fresh `FGrid` per battle.

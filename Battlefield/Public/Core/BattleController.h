@@ -37,7 +37,7 @@ public:
 	std::function<void(FBaseUnit*, const FGrid::FGridCoordinate& position)> OnUnitSpawned;
 	std::function<void(const FBattleMoveEvent&)> OnUnitMoved;
 	std::function<void(const FBattleAttackEvent&)> OnUnitDidAttacked;
-	std::function<void(const BattleHealEvent&)> OnUnitDidHealed;
+	std::function<void(const FBattleHealEvent&)> OnUnitDidHealed;
 	std::function<void(const FBaseUnit*)> OnUnitActionPerformed;
 	std::function<void(const FBattleDamageEvent&)> OnUnitDamaged;
 	std::function<void(const FBattleHealedEvent&)> OnUnitHealed;

@@ -168,7 +168,8 @@ bool FGrid::RunWeightedSearch(
 	uint16 maxCost,
 	TGoalPredicate&& goalPredicate,
 	THeuristic&& heuristic,
-	bool checkBlockedTiles) const
+	bool checkBlockedTiles,
+	ETeams passThroughTeam) const
 {
 	AddGeneration();
 
@@ -223,7 +224,13 @@ bool FGrid::RunWeightedSearch(
 
 			if (checkBlockedTiles)
 			{
-				if (neighbourTile.IsBlocked())
+				if (neighbourTile.IsWeightBlocked())
+				{
+					continue;
+				}
+				// Units block movement, except allies of passThroughTeam, which can be crossed (not stopped on).
+				if (neighbourTile.unit != nullptr &&
+					(passThroughTeam == ETeams::Null || neighbourTile.unit->GetTeam() != passThroughTeam))
 				{
 					continue;
 				}
@@ -315,7 +322,7 @@ void FGrid::GetNeighbours(const FGridCoordinate& coord, std::vector<FGridCoordin
 }
 
 void FGrid::GetWeightedNeighbours(const FGridCoordinate& coord, std::vector<FGridCoordinate>& neighbours,
-                                  uint16 size, bool checkBlockedTiles) const
+                                  uint16 size, bool checkBlockedTiles, ETeams passThroughTeam) const
 {
 	neighbours.clear();
 
@@ -324,13 +331,17 @@ void FGrid::GetWeightedNeighbours(const FGridCoordinate& coord, std::vector<FGri
 		return;
 	}
 
+	const uint32 startIndex = GetIndex(coord);
 	RunWeightedSearch(
 		coord,
 		size,
 		[&](uint32 currentIndex)
 		{
-			neighbours.push_back(
-				mTiles[currentIndex].coord);
+			// A tile crossed through an ally is not a valid place to stop.
+			if (!checkBlockedTiles || currentIndex == startIndex || mTiles[currentIndex].unit == nullptr)
+			{
+				neighbours.push_back(mTiles[currentIndex].coord);
+			}
 
 			return false;
 		},
@@ -338,7 +349,8 @@ void FGrid::GetWeightedNeighbours(const FGridCoordinate& coord, std::vector<FGri
 		{
 			return gCost;
 		},
-		checkBlockedTiles);
+		checkBlockedTiles,
+		passThroughTeam);
 }
 
 int32 FGrid::GetDistance(FGridCoordinate origin, FGridCoordinate destination) const
@@ -346,7 +358,8 @@ int32 FGrid::GetDistance(FGridCoordinate origin, FGridCoordinate destination) co
 	return Heuristic(origin, destination);
 }
 
-int32 FGrid::GetWeightedDistance(FGridCoordinate start, FGridCoordinate destination, bool checkBlockedTiles) const
+int32 FGrid::GetWeightedDistance(FGridCoordinate start, FGridCoordinate destination, bool checkBlockedTiles,
+                                 ETeams passThroughTeam) const
 {
 	if (!IsValid(start) || !IsValid(destination))
 	{
@@ -359,6 +372,12 @@ int32 FGrid::GetWeightedDistance(FGridCoordinate start, FGridCoordinate destinat
 	}
 
 	const uint32 destinationIndex = GetIndex(destination);
+	if (checkBlockedTiles && passThroughTeam != ETeams::Null && mTiles[destinationIndex].unit != nullptr)
+	{
+		// Allies can be crossed but never stopped on.
+		return -1;
+	}
+
 	const bool bFound =
 		RunWeightedSearch(
 			start,
@@ -371,7 +390,8 @@ int32 FGrid::GetWeightedDistance(FGridCoordinate start, FGridCoordinate destinat
 			{
 				return gCost;
 			},
-			checkBlockedTiles);
+			checkBlockedTiles,
+			passThroughTeam);
 
 	if (!bFound)
 	{
@@ -715,6 +735,15 @@ void FGrid::RemoveUnitFromTile(const FGridEntity* target)
 	{
 		tile->unit = nullptr;
 	}
+}
+
+void FGrid::ClearUnits()
+{
+	for (FTileData& tile : mTiles)
+	{
+		tile.unit = nullptr;
+	}
+	mActorPositions.clear();
 }
 
 void FGrid::SetTileWeight(int32 x, int32 y, int8_t weight)

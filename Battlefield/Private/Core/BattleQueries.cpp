@@ -9,11 +9,12 @@ static inline bool ContainsTile(const std::vector<FGrid::FGridCoordinate>& Tiles
 	return std::ranges::find(Tiles, Coord) != Tiles.end();
 }
 
-void FBattleQueries::GetMovementArea(const FBaseUnit* unit, std::vector<FGrid::FGridCoordinate>& neighbours) const
+void FBattleQueries::GetMovementArea(const FBaseUnit* unit, std::vector<FGrid::FGridCoordinate>& neighbours,
+                                     bool passThroughAllies) const
 {
 	const FGrid::FGridCoordinate pos = mpGrid->GetUnitPosition(unit);
 	int32 size = unit->GetMovementPoints();
-	mpGrid->GetWeightedNeighbours(pos, neighbours, size, true);
+	mpGrid->GetWeightedNeighbours(pos, neighbours, size, true, passThroughAllies ? unit->GetTeam() : ETeams::Null);
 }
 
 bool FBattleQueries::HasWinner() const

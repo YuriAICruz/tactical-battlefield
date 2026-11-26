@@ -72,10 +72,10 @@ bool FBaseUnit::InRange(FGrid::FGridCoordinate position, FGrid::FGridCoordinate 
 	return distance <= mCurrentCombatWeapon.range;
 }
 
-int32 FBaseUnit::GetMovementCost(const FGrid* grid, FGrid::FGridCoordinate destination) const
+int32 FBaseUnit::GetMovementCost(const FGrid* grid, FGrid::FGridCoordinate destination, bool passThroughAllies) const
 {
 	FGrid::FGridCoordinate start = grid->GetUnitPosition(this);
-	return grid->GetWeightedDistance(start, destination, true);
+	return grid->GetWeightedDistance(start, destination, true, passThroughAllies ? GetTeam() : ETeams::Null);
 }
 
 bool FBaseUnit::CanMove(int32 cost) const
