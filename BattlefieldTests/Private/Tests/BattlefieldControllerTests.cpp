@@ -641,3 +641,72 @@ bool HealEventAliasTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Value"), legacy.Value, 4);
 	return true;
 }
+
+BATTLEFIELD_CONTROLLER_TEST(SpawnCopiesNameAndAttributesTest)
+
+bool SpawnCopiesNameAndAttributesTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+
+	FBaseUnit* unit = controller.SpawnUnit(ETeams::Player, TestsHelper::kBaseCombatStats,
+	                                       TestsHelper::kBaseTurnResources, TestsHelper::kCombatWeapon, {1, 1},
+	                                       "Alm", {{"STR", 12}, {"level", 3}});
+
+	TestNotNull(TEXT("unit spawned"), unit);
+	TestEqual(TEXT("Name"), unit->GetName(), FName("Alm"));
+	TestEqual(TEXT("STR"), unit->GetAttribute("STR"), 12);
+	TestEqual(TEXT("level"), unit->GetAttribute("level"), 3);
+	TestEqual(TEXT("Attribute count"), static_cast<int32>(unit->GetAttributes().size()), 2);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(SpawnWithoutAttributesKeepsDefaultsTest)
+
+bool SpawnWithoutAttributesKeepsDefaultsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+
+	FBaseUnit* unit = controller.SpawnUnit(ETeams::Player, TestsHelper::kBaseCombatStats,
+	                                       TestsHelper::kBaseTurnResources, TestsHelper::kCombatWeapon, {1, 1});
+
+	TestNotNull(TEXT("unit spawned"), unit);
+	TestTrue(TEXT("Name empty"), unit->GetName().empty());
+	TestTrue(TEXT("No attributes"), unit->GetAttributes().empty());
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(StartBattleCopiesUnitDataAttributesTest)
+
+bool StartBattleCopiesUnitDataAttributesTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+
+	std::vector<FBaseUnit*> spawned;
+	controller.OnUnitSpawned = [&](FBaseUnit* unit, const FGrid::FGridCoordinate&) { spawned.push_back(unit); };
+
+	FBattleController::FBattleStartData data;
+	FBattleController::FUnitData hero{
+		"Hero", ETeams::Player, TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+		TestsHelper::kCombatWeapon, {1, 1}
+	};
+	hero.attributes = {{"STR", 8}, {"classId", 2}};
+	data.units.push_back(hero);
+	data.units.push_back({
+		"Grunt", ETeams::Enemy, TestsHelper::kBaseCombatStats, TestsHelper::kBaseTurnResources,
+		TestsHelper::kCombatWeapon, {5, 5}
+	});
+
+	TestTrue(TEXT("Battle started"), controller.StartBattle(data));
+	TestEqual(TEXT("Two units"), static_cast<int32>(spawned.size()), 2);
+	if (spawned.size() != 2) return true;
+
+	TestEqual(TEXT("Hero name"), spawned[0]->GetName(), FName("Hero"));
+	TestEqual(TEXT("Hero STR"), spawned[0]->GetAttribute("STR"), 8);
+	TestEqual(TEXT("Hero classId"), spawned[0]->GetAttribute("classId"), 2);
+	TestEqual(TEXT("Grunt name"), spawned[1]->GetName(), FName("Grunt"));
+	TestTrue(TEXT("Grunt has no attributes"), spawned[1]->GetAttributes().empty());
+	return true;
+}

@@ -655,3 +655,79 @@ bool StatusAddRemoveOrderTest::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+ACTOR_TEST(AttributeSetGetTest)
+
+bool AttributeSetGetTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+
+	Actor->SetAttribute("STR", 7);
+	Actor->SetAttribute("SKL", -3);
+
+	TestEqual(TEXT("STR stored"), Actor->GetAttribute("STR"), 7);
+	TestEqual(TEXT("Negative values stored"), Actor->GetAttribute("SKL"), -3);
+	TestTrue(TEXT("HasAttribute STR"), Actor->HasAttribute("STR"));
+	TestEqual(TEXT("Bag size"), static_cast<int32>(Actor->GetAttributes().size()), 2);
+
+	Actor->SetAttribute("STR", 9);
+	TestEqual(TEXT("Overwrite"), Actor->GetAttribute("STR"), 9);
+	TestEqual(TEXT("Overwrite does not add"), static_cast<int32>(Actor->GetAttributes().size()), 2);
+
+	return true;
+}
+
+ACTOR_TEST(AttributeDefaultTest)
+
+bool AttributeDefaultTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+
+	TestFalse(TEXT("Missing attribute"), Actor->HasAttribute("LCK"));
+	TestEqual(TEXT("Implicit default is 0"), Actor->GetAttribute("LCK"), 0);
+	TestEqual(TEXT("Explicit default"), Actor->GetAttribute("LCK", 42), 42);
+	TestFalse(TEXT("Reading does not create the attribute"), Actor->HasAttribute("LCK"));
+
+	Actor->SetAttribute("LCK", 0);
+	TestTrue(TEXT("Attribute set to 0 exists"), Actor->HasAttribute("LCK"));
+	TestEqual(TEXT("Stored value wins over default"), Actor->GetAttribute("LCK", 42), 0);
+
+	return true;
+}
+
+ACTOR_TEST(TagAndNameTest)
+
+bool TagAndNameTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+
+	TestTrue(TEXT("Tag empty by default"), Actor->GetTag().empty());
+	TestTrue(TEXT("Name empty by default"), Actor->GetName().empty());
+
+	Actor->SetTag("Archer");
+	Actor->SetName("Robin");
+
+	TestEqual(TEXT("Tag"), Actor->GetTag(), FName("Archer"));
+	TestEqual(TEXT("Name"), Actor->GetName(), FName("Robin"));
+
+	return true;
+}
+
+ACTOR_TEST(AttributesDoNotAffectCombatTest)
+
+bool AttributesDoNotAffectCombatTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	const int32 health = Actor->GetHealth();
+	const int32 damage = Actor->GetWeaponBaseDamage();
+	const int32 ap = Actor->GetActionPoints();
+
+	Actor->SetAttribute("STR", 99);
+	Actor->SetAttribute("DEF", 99);
+
+	TestEqual(TEXT("Health"), Actor->GetHealth(), health);
+	TestEqual(TEXT("Weapon damage"), Actor->GetWeaponBaseDamage(), damage);
+	TestEqual(TEXT("AP"), Actor->GetActionPoints(), ap);
+
+	return true;
+}
