@@ -65,6 +65,8 @@ public:
 
 		const FGridCoordinate coord;
 		int8_t weight = 0;
+		// Opaque terrain label owned by the client (forest, fort...). Never read by pathing, blocking or LOS.
+		int32 tag = 0;
 		FGridEntity* unit;
 
 		bool IsBlocked() const
@@ -115,6 +117,12 @@ public:
 	// Drops every unit from the grid (tiles and position map). Tile weights are kept.
 	void ClearUnits();
 	void SetTileWeight(int32 x, int32 y, int8_t weight);
+	// Out-of-bounds coordinates are ignored.
+	void SetTileTag(int32 x, int32 y, int32 tag);
+	// Returns 0 (the default tag) for out-of-bounds coordinates.
+	int32 GetTileTag(int32 x, int32 y) const;
+	// Convenience for map loading: sets weight and tag in one call.
+	void SetTile(int32 x, int32 y, int8_t weight, int32 tag);
 
 private:
 	struct FQueueNode
