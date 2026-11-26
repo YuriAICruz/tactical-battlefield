@@ -14,7 +14,9 @@ FBattleController::FBattleController(FGrid* grid) :
 FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatStats& stats,
                                         const FBaseUnit::FTurnResources& resources,
                                         const FBaseUnit::FCombatWeapon& weapon,
-                                        FGrid::FGridCoordinate position)
+                                        FGrid::FGridCoordinate position,
+                                        const FName& name,
+                                        const std::map<FName, int32>& attributes)
 {
 	if (mpGrid->IsBlocked(position))
 	{
@@ -30,6 +32,12 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
 	{
 		BF_LOG(Error, "FBattleController/SpawnUnit: troupe->CreateActor Failed");
 		return nullptr;
+	}
+
+	unit->SetName(name);
+	for (const auto& [attrName, attrValue] : attributes)
+	{
+		unit->SetAttribute(attrName, attrValue);
 	}
 
 	bool moved = mpGrid->MoveUnitToTile(position, unit);
@@ -329,7 +337,8 @@ bool FBattleController::StartBattle(const FBattleStartData& data)
 			BF_LOG(Error, "FBattleController/StartBattle: Invalid Team %d", static_cast<int>(unit.team));
 			return false;
 		}
-		FBaseUnit* createdUnit = SpawnUnit(unit.team, unit.combatStats, unit.turnResources, unit.weapon, unit.position);
+		FBaseUnit* createdUnit = SpawnUnit(unit.team, unit.combatStats, unit.turnResources, unit.weapon, unit.position,
+		                                      unit.name, unit.attributes);
 		if (!createdUnit)
 		{
 			BF_LOG(Error, "FBattleController/StartBattle: Failed To create Unit");

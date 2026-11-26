@@ -15,7 +15,7 @@ libraries on other platforms) without Unreal installed.
 | Project | Output | What it is |
 |---|---|---|
 | [`Battlefield/`](../Battlefield) | `Battlefield.dll` | The game core: grid, units, teams, battle controller, queries, events. |
-| [`BattlefieldTests/`](../BattlefieldTests) | `BattlefieldTests.dll` (+ `BattlefieldTestRunner.exe`) | The 178 automation tests (166 transpiled from `Source/Battlefield/Private/Tests` + 12 bug-fix tests), exposed through a small C API, plus a console host that runs them. |
+| [`BattlefieldTests/`](../BattlefieldTests) | `BattlefieldTests.dll` (+ `BattlefieldTestRunner.exe`) | The 185 automation tests (166 transpiled from `Source/Battlefield/Private/Tests` + 12 bug-fix tests + 7 unit-attribute tests), exposed through a small C API, plus a console host that runs them. |
 
 ```
 BattlefieldCpp/

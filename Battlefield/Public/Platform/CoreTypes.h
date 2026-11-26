@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>

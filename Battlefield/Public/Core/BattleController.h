@@ -19,6 +19,7 @@ public:
 		FBaseUnit::FTurnResources turnResources;
 		FBaseUnit::FCombatWeapon weapon;
 		FGrid::FGridCoordinate position;
+		std::map<FName, int32> attributes; // optional, copied onto the unit at spawn
 	};
 
 	struct BATTLEFIELD_API FBattleStartData
@@ -52,7 +53,9 @@ public:
 	                     const FBaseUnit::FCombatStats& stats,
 	                     const FBaseUnit::FTurnResources& resources,
 	                     const FBaseUnit::FCombatWeapon& weapon,
-	                     FGrid::FGridCoordinate position);
+	                     FGrid::FGridCoordinate position,
+	                     const FName& name = FName(),
+	                     const std::map<FName, int32>& attributes = {});
 	bool MoveUnit(FBaseUnit* Unit, FGrid::FGridCoordinate Destination) const;
 	bool MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate destination, int32 cost) const;
 	bool AttackUnitWithWeapon(FBaseUnit* attacker, FBaseUnit* target) const;
