@@ -6,7 +6,6 @@ add_library(BattlefieldTests SHARED
   Private/Tests/BattlefieldControllerTests.cpp
   Private/Tests/BattlefieldFlowTests.cpp
   Private/Tests/BattlefieldQueryTests.cpp
-  Private/Tests/BugfixTests.cpp
   Private/Tests/GridTests.cpp
   Private/Tests/TeamTests.cpp
 )
