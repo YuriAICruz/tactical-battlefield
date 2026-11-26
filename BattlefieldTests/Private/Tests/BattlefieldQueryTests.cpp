@@ -687,3 +687,62 @@ bool LegacyWeaponTargetsUnchangedTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Target at distance 14"), ContainsUnit(targets, outside));
 	return true;
 }
+
+BATTLEFIELD_QUERY_TEST(GetAvailableActionsFiltersByCanUseAndApTest)
+
+bool GetAvailableActionsFiltersByCanUseAndApTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	unit->SetAttribute("canHeal", 0);
+
+	FActionDef heal;
+	heal.id = "heal";
+	heal.apCost = 1;
+	heal.canUse = [](const FBaseUnit& u) { return u.GetAttribute("canHeal") > 0; };
+	FActionDef wait;
+	wait.id = "wait";
+	wait.apCost = 0;
+	FActionDef ultimate;
+	ultimate.id = "ultimate";
+	ultimate.apCost = 99;
+	controller.RegisterAction(heal);
+	controller.RegisterAction(wait);
+	controller.RegisterAction(ultimate);
+
+	std::vector<const FActionDef*> actions;
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestEqual(TEXT("Only wait: heal locked, ultimate too expensive"), static_cast<int32>(actions.size()), 1);
+	if (actions.size() == 1) TestEqual(TEXT("It is wait"), actions[0]->id, FName("wait"));
+
+	unit->SetAttribute("canHeal", 1);
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestEqual(TEXT("Heal unlocked"), static_cast<int32>(actions.size()), 2);
+
+	while (unit->GetActionPoints() > 0) unit->SpendActionPoints(1);
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestEqual(TEXT("No AP: only the free action"), static_cast<int32>(actions.size()), 1);
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(GetAvailableActionsDeadOrNullTest)
+
+bool GetAvailableActionsDeadOrNullTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	FActionDef wait;
+	wait.id = "wait";
+	controller.RegisterAction(wait);
+
+	std::vector<const FActionDef*> actions;
+	controller.GetQueryController()->GetAvailableActions(nullptr, actions);
+	TestTrue(TEXT("Null unit: empty"), actions.empty());
+
+	unit->ReceiveDamage(unit->GetMaxHealth());
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestTrue(TEXT("Dead unit: empty"), actions.empty());
+	return true;
+}

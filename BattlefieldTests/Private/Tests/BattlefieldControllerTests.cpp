@@ -1077,3 +1077,220 @@ bool ResolveHookMayReadQueriesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Damage came from the query"), target->GetMaxHealth() - target->GetHealth(), 2);
 	return true;
 }
+
+static FActionDef MakeAction(const FName& id, int32 apCost = 1, bool endsTurn = false)
+{
+	FActionDef action;
+	action.id = id;
+	action.name = id;
+	action.apCost = apCost;
+	action.endsUnitTurn = endsTurn;
+	action.execute = [](FBaseUnit&, FGrid::FGridCoordinate) { return true; };
+	return action;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(RegisterAndListActionsTest)
+
+bool RegisterAndListActionsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+
+	TestTrue(TEXT("No actions by default"), controller.GetActions().empty());
+	TestTrue(TEXT("Register heal"), controller.RegisterAction(MakeAction("heal")));
+	TestTrue(TEXT("Register rescue"), controller.RegisterAction(MakeAction("rescue")));
+	TestEqual(TEXT("Two actions"), static_cast<int32>(controller.GetActions().size()), 2);
+	TestEqual(TEXT("Order kept"), controller.GetActions()[0].id, FName("heal"));
+
+	FActionDef replaced = MakeAction("heal", 3);
+	TestTrue(TEXT("Same id replaces"), controller.RegisterAction(replaced));
+	TestEqual(TEXT("Still two actions"), static_cast<int32>(controller.GetActions().size()), 2);
+	TestEqual(TEXT("Cost replaced"), controller.GetActions()[0].apCost, 3);
+
+	TestFalse(TEXT("Empty id rejected"), controller.RegisterAction(MakeAction("")));
+	TestTrue(TEXT("Unregister"), controller.UnregisterAction("heal"));
+	TestFalse(TEXT("Unregister unknown"), controller.UnregisterAction("heal"));
+	TestEqual(TEXT("One action left"), static_cast<int32>(controller.GetActions().size()), 1);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PerformActionSpendsApAndFiresEventsTest)
+
+bool PerformActionSpendsApAndFiresEventsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+
+	FGrid::FGridCoordinate seenTarget{-1, -1};
+	FActionDef action = MakeAction("item", 2);
+	action.execute = [&](FBaseUnit&, FGrid::FGridCoordinate target)
+	{
+		seenTarget = target;
+		return true;
+	};
+	controller.RegisterAction(action);
+
+	int32 legacyEvents = 0;
+	FName seenId;
+	const FBaseUnit* seenUnit = nullptr;
+	controller.OnUnitActionPerformed = [&](const FBaseUnit*) { ++legacyEvents; };
+	controller.OnActionPerformed = [&](const FBaseUnit* u, const FName& id)
+	{
+		seenUnit = u;
+		seenId = id;
+	};
+
+	const int32 ap = unit->GetActionPoints();
+	TestTrue(TEXT("Perform"), controller.PerformAction(unit, "item", {4, 5}));
+	TestEqual(TEXT("AP spent"), unit->GetActionPoints(), ap - 2);
+	TestEqual(TEXT("Target passed to execute (x)"), seenTarget.x, 4);
+	TestEqual(TEXT("Target passed to execute (y)"), seenTarget.y, 5);
+	TestEqual(TEXT("Legacy event fired"), legacyEvents, 1);
+	TestEqual(TEXT("Event carries the id"), seenId, FName("item"));
+	TestEqual(TEXT("Event carries the unit"), seenUnit, static_cast<const FBaseUnit*>(unit));
+	TestFalse(TEXT("Not ending the turn: unit did not wait"), unit->HasWaited());
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PerformActionExecuteFailureSpendsNothingTest)
+
+bool PerformActionExecuteFailureSpendsNothingTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+
+	FActionDef action = MakeAction("fail", 2, true);
+	action.execute = [](FBaseUnit&, FGrid::FGridCoordinate) { return false; };
+	controller.RegisterAction(action);
+
+	int32 events = 0;
+	controller.OnUnitActionPerformed = [&](const FBaseUnit*) { ++events; };
+	controller.OnActionPerformed = [&](const FBaseUnit*, const FName&) { ++events; };
+	controller.OnUnitWaited = [&](const FBaseUnit*) { ++events; };
+
+	const int32 ap = unit->GetActionPoints();
+	TestFalse(TEXT("Perform fails"), controller.PerformAction(unit, "fail", {0, 0}));
+	TestEqual(TEXT("AP untouched"), unit->GetActionPoints(), ap);
+	TestFalse(TEXT("Unit did not wait"), unit->HasWaited());
+	TestEqual(TEXT("No events"), events, 0);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PerformActionEndsUnitTurnTest)
+
+bool PerformActionEndsUnitTurnTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	controller.SetRequireWait(true);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	controller.RegisterAction(MakeAction("wait", 0, true));
+
+	int32 waited = 0;
+	controller.OnUnitWaited = [&](const FBaseUnit*) { ++waited; };
+
+	TestTrue(TEXT("Perform a zero-cost end-turn action"), controller.PerformAction(unit, "wait"));
+	TestTrue(TEXT("Unit waited"), unit->HasWaited());
+	TestEqual(TEXT("OnUnitWaited fired"), waited, 1);
+	TestFalse(TEXT("With RequireWait the unit cannot move anymore"), controller.MoveUnit(unit, {2, 3}));
+	TestFalse(TEXT("Nor perform another action"), controller.PerformAction(unit, "wait"));
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PerformActionRejectsInvalidCallsTest)
+
+bool PerformActionRejectsInvalidCallsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* player = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {7, 7});
+	controller.RegisterAction(MakeAction("heal"));
+	controller.RegisterAction(MakeAction("expensive", 99));
+	FActionDef locked = MakeAction("locked");
+	locked.canUse = [](const FBaseUnit&) { return false; };
+	controller.RegisterAction(locked);
+
+	TestFalse(TEXT("Wrong team"), controller.PerformAction(enemy, "heal"));
+	TestFalse(TEXT("Null unit"), controller.PerformAction(nullptr, "heal"));
+	TestFalse(TEXT("Unknown id"), controller.PerformAction(player, "nope"));
+	TestFalse(TEXT("Not enough AP"), controller.PerformAction(player, "expensive"));
+	TestFalse(TEXT("canUse false"), controller.PerformAction(player, "locked"));
+	TestEqual(TEXT("AP untouched by all rejections"), player->GetActionPoints(), player->GetMaxActionPoints());
+	TestTrue(TEXT("The valid one still works"), controller.PerformAction(player, "heal"));
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PerformActionMayMutateBattleTest)
+
+bool PerformActionMayMutateBattleTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {3, 2});
+
+	// An "attack" action defined entirely on the client side, built on the existing controller calls.
+	FActionDef attack = MakeAction("attack", 0);
+	attack.execute = [&](FBaseUnit& self, FGrid::FGridCoordinate)
+	{
+		return controller.AttackUnitRaw(&self, enemy, 1, 1, 4);
+	};
+	controller.RegisterAction(attack);
+
+	TestTrue(TEXT("Action performed"), controller.PerformAction(unit, "attack"));
+	TestEqual(TEXT("Enemy took the damage"), enemy->GetHealth(), enemy->GetMaxHealth() - 4);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(DoUnitActionDelegatesToDefaultActionTest)
+
+bool DoUnitActionDelegatesToDefaultActionTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+
+	int32 legacyEvents = 0;
+	controller.OnUnitActionPerformed = [&](const FBaseUnit*) { ++legacyEvents; };
+
+	// Not registered: the old stub (cost 1, no effect, event) is unchanged.
+	const int32 ap = unit->GetActionPoints();
+	TestTrue(TEXT("Legacy stub works"), controller.DoUnitAction(unit));
+	TestEqual(TEXT("Legacy cost is 1"), unit->GetActionPoints(), ap - 1);
+	TestEqual(TEXT("Legacy event"), legacyEvents, 1);
+
+	// Registered: DoUnitAction runs the "default" action instead.
+	int32 executed = 0;
+	FActionDef def = MakeAction("default", 3);
+	def.execute = [&](FBaseUnit&, FGrid::FGridCoordinate) { ++executed; return true; };
+	controller.RegisterAction(def);
+	TestTrue(TEXT("Delegated"), controller.DoUnitAction(unit));
+	TestEqual(TEXT("execute ran"), executed, 1);
+	TestEqual(TEXT("Delegated cost is 3"), unit->GetActionPoints(), ap - 1 - 3);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(GetTargetsCallbackIsReachableTest)
+
+bool GetTargetsCallbackIsReachableTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+
+	FActionDef action = MakeAction("heal");
+	action.getTargets = [](const FBaseUnit&, std::vector<FGrid::FGridCoordinate>& out)
+	{
+		out.push_back({1, 1});
+		out.push_back({3, 3});
+	};
+	controller.RegisterAction(action);
+
+	std::vector<FGrid::FGridCoordinate> targets;
+	controller.GetActions()[0].getTargets(*unit, targets);
+	TestEqual(TEXT("Two tiles"), static_cast<int32>(targets.size()), 2);
+	return true;
+}

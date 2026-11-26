@@ -833,3 +833,84 @@ bool WeaponOpaqueDataIsStoredTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("weight"), weapon->properties.at("weight"), 3);
 	return true;
 }
+
+namespace
+{
+	// A client-defined effect: not FStatusEffect, with its own behaviour.
+	class FPoisonEffect : public FBaseStatusEffect
+	{
+	public:
+		FPoisonEffect(FBaseUnit* target, uint8 type, int32 damagePerTick) :
+			FBaseStatusEffect(target), mType(type), mDamage(damagePerTick)
+		{
+		}
+
+		const uint8& GetType() const override { return mType; }
+
+		void AddTurnTick(FBaseUnit* unit) override
+		{
+			FBaseStatusEffect::AddTurnTick(unit);
+			unit->ReceiveDamage(mDamage);
+		}
+
+	private:
+		uint8 mType;
+		int32 mDamage;
+	};
+}
+
+ACTOR_TEST(AddClientStatusEffectTest)
+
+bool AddClientStatusEffectTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	int32 added = 0;
+	Actor->OnStatusAdded = [&](const FBaseUnit*, uint8 type) { added = type; };
+
+	FBaseStatusEffect* effect = Actor->AddStatusEffect(std::make_unique<FPoisonEffect>(Actor.get(), 9, 2));
+	TestTrue(TEXT("Effect added"), effect != nullptr);
+	TestTrue(TEXT("Has the type"), Actor->HasStatusType(9));
+	TestEqual(TEXT("OnStatusAdded fired with the type"), added, 9);
+	TestTrue(TEXT("Same object is returned"), Actor->GetStatusEffect(9) == effect);
+
+	const int32 health = Actor->GetHealth();
+	Actor->ResetTurnStats(); // ticks effects
+	TestEqual(TEXT("Custom tick behaviour ran"), Actor->GetHealth(), health - 2);
+	return true;
+}
+
+ACTOR_TEST(AddClientStatusEffectRejectsInvalidTest)
+
+bool AddClientStatusEffectRejectsInvalidTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	std::unique_ptr<FBaseUnit> Other = CreateTestActor();
+
+	TestTrue(TEXT("Null effect"), Actor->AddStatusEffect(std::unique_ptr<FBaseStatusEffect>()) == nullptr);
+	TestTrue(TEXT("Effect built for another unit"),
+	         Actor->AddStatusEffect(std::make_unique<FPoisonEffect>(Other.get(), 3, 1)) == nullptr);
+	TestFalse(TEXT("Nothing was added"), Actor->HasStatusType(3));
+
+	TestTrue(TEXT("First poison"), Actor->AddStatusEffect(std::make_unique<FPoisonEffect>(Actor.get(), 3, 1)) != nullptr);
+	TestTrue(TEXT("Duplicate type rejected"),
+	         Actor->AddStatusEffect(std::make_unique<FPoisonEffect>(Actor.get(), 3, 1)) == nullptr);
+	TestTrue(TEXT("Duplicate of a built-in type rejected"), Actor->AddStatusEffect(static_cast<uint8>(3)) == nullptr);
+	return true;
+}
+
+ACTOR_TEST(AddClientStatusEffectRespectsSlotLimitTest)
+
+bool AddClientStatusEffectRespectsSlotLimitTest::RunTest(const FString& Parameters)
+{
+	std::unique_ptr<FBaseUnit> Actor = CreateTestActor();
+	for (uint8 i = 0; i < MAX_EFFECTS_PER_UNIT; ++i)
+	{
+		TestTrue(TEXT("Slot filled"),
+		         Actor->AddStatusEffect(std::make_unique<FPoisonEffect>(Actor.get(), static_cast<uint8>(10 + i), 1)) != nullptr);
+	}
+	TestTrue(TEXT("Ninth effect rejected"),
+	         Actor->AddStatusEffect(std::make_unique<FPoisonEffect>(Actor.get(), 99, 1)) == nullptr);
+	TestTrue(TEXT("Removing frees a slot"), Actor->RemoveStatusEffect(10));
+	TestTrue(TEXT("Now it fits"), Actor->AddStatusEffect(std::make_unique<FPoisonEffect>(Actor.get(), 99, 1)) != nullptr);
+	return true;
+}
