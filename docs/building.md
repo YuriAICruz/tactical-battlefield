@@ -73,7 +73,7 @@ find_package(Battlefield CONFIG REQUIRED)          # with -DBattlefield_DIR=<dis
 target_link_libraries(MyGame PRIVATE Battlefield::Battlefield)   # include path + dllimport come along
 ```
 
-Copy `Battlefield.dll` next to your executable (the sample does this in a post-build step).
+Copy the DLL of the configuration you build (`Battlefield.dll`, or `Battlefieldd.dll` for Debug) next to your executable; the sample does this in a post-build step with `$<TARGET_FILE:Battlefield::Battlefield>`. Debug carries a `d` postfix (`DEBUG_POSTFIX`) precisely so both configurations can live in one `dist`: without it the second install overwrote the first.
 
 ## ABI notes
 

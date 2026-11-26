@@ -15,7 +15,7 @@ libraries on other platforms) without Unreal installed.
 | Project | Output | What it is |
 |---|---|---|
 | [`Battlefield/`](../Battlefield) | `Battlefield.dll` | The game core: grid, units, teams, battle controller, queries, events. |
-| [`BattlefieldTests/`](../BattlefieldTests) | `BattlefieldTests.dll` (+ `BattlefieldTestRunner.exe`) | The 185 automation tests (166 transpiled from `Source/Battlefield/Private/Tests` + 12 bug-fix tests + 7 unit-attribute tests), exposed through a small C API, plus a console host that runs them. |
+| [`BattlefieldTests/`](../BattlefieldTests) | `BattlefieldTests.dll` (+ `BattlefieldTestRunner.exe`) | The 243 automation tests (166 transpiled from `Source/Battlefield/Private/Tests` + the tests added per feature, see [testing.md](testing.md)), exposed through a small C API, plus a console host that runs them. |
 
 ```
 BattlefieldCpp/
@@ -54,7 +54,7 @@ BattlefieldCpp/
 * **Queries** – `FBattleQueries` is a read-only façade: movement area, attackable targets, visible
   units, line of sight, nearest enemy, paths, valid actions, winner.
 
-See [architecture.md](architecture.md) for the class-by-class design and
+See [architecture.md](architecture.md) for the class-by-class design, [extension-points.md](extension-points.md) for how a client plugs in weapons, actions and the attack hook, and
 [gameplay-rules.md](gameplay-rules.md) for the exact rules the code enforces.
 
 ## Quick start

@@ -145,5 +145,6 @@ original game logic. Candidates for a future clean-up (the other quirks of the o
 
 1. `armor` and `dodge` are stored but not used by any formula.
 2. `ApplyStatus` / `RemoveStatus` check the attacker's **AP** but spend **movement** points.
-3. `GetVisibleUnits` computes a line-of-sight list first but then overwrites it with the weighted-area result, so
+3. `FBaseUnit::CanAttack(cost)` only checks AP and that a weapon is equipped; the distance is checked by `InRange` and the target queries.
+4. `GetVisibleUnits` computes a line-of-sight list first but then overwrites it with the weighted-area result, so
    effectively only the area test decides.
