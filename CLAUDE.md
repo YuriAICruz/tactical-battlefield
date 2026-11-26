@@ -16,6 +16,7 @@ Workflows are written in PlantUML; render them with any PlantUML viewer.
 - Confirm with the user before every commit (show the planned commits and files first).
 - Do NOT create a PR. At the end of the task, send the PR description in the final message.
 - Prefer PlantUML for workflows, flows, architecture and sequences in docs and reports; use plain text only when a diagram adds nothing.
+- Update docs along with the commit changes.
 
 ## Work pipeline
 
