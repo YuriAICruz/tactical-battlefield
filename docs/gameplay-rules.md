@@ -100,7 +100,9 @@ team is wiped out `OnWinnerDeclared` then `OnBattleEnded` → AP is spent → `O
 
 `AttackUnitRaw(attacker, target, range, cost, damage)` and `HealUnitRaw(...)` do the same with caller-supplied
 numbers (scripted/ability effects). `HealUnitRaw` requires a **friendly** (non-hostile) target; healing an enemy is
-rejected and spends nothing. `DoUnitAction(unit)` requires the unit to be on the current team, spends the unit's action
+rejected and spends nothing.
+
+**Custom actions.** `RegisterAction(FActionDef)` adds a client-defined action (same id replaces; empty id rejected). `PerformAction(unit, id, target)` requires the unit on the current team and able to act, a registered id, enough AP (`apCost`) and `canUse` (if set); it then calls `execute(unit, target)` (unset = succeeds with no effect). If `execute` returns `false` nothing is spent and no event fires. On success it spends `apCost`, raises `OnUnitActionPerformed` and `OnActionPerformed(unit, id)`, and when `endsUnitTurn` waits the unit (`OnUnitWaited`). `execute` may mutate the battle. `DoUnitAction(unit)` is deprecated: it runs the action registered as `"default"`; when none is registered it keeps the old stub, which requires the unit to be on the current team, spends the unit's action
 cost (currently always 1 AP) and raises `OnUnitActionPerformed`.
 
 ## 7. Victory
@@ -133,6 +135,7 @@ is blocked/occupied/off-board, or creation fails. `SpawnUnit` can also be used o
 | `GetPath` / `GetPathTo` | A\* path ignoring unit blockers |
 | `GetUnitMovementCost` | cost to reach a tile |
 | `GetValidActions(unit, cost)` | flags `Move`, `Attack`, `DoActions`; `None` for dead units |
+| `GetAvailableActions(unit, out)` | registered actions the living unit has the AP for and whose `canUse` allows |
 | `HasWinner` / `GetWinner` / `GetCurrentTeam` | battle state |
 
 ## 10. Known placeholders and quirks (kept from the Unreal module)
