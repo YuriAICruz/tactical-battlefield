@@ -755,3 +755,35 @@ void FGrid::SetTileWeight(int32 x, int32 y, int8_t weight)
 
 	GetTile(x, y)->weight = weight;
 }
+
+void FGrid::SetTileTag(int32 x, int32 y, int32 tag)
+{
+	if (!IsValid(x, y))
+	{
+		return;
+	}
+
+	GetTile(x, y)->tag = tag;
+}
+
+int32 FGrid::GetTileTag(int32 x, int32 y) const
+{
+	if (!IsValid(x, y))
+	{
+		return 0;
+	}
+
+	return GetTile(x, y)->tag;
+}
+
+void FGrid::SetTile(int32 x, int32 y, int8_t weight, int32 tag)
+{
+	if (!IsValid(x, y))
+	{
+		return;
+	}
+
+	FTileData* tile = GetTile(x, y);
+	tile->weight = weight;
+	tile->tag = tag;
+}

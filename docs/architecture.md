@@ -11,7 +11,7 @@ the controller, and the controller is the only place where the pieces are combin
 
 | Class | File | Responsibility |
 |---|---|---|
-| `FGrid` | `Core/Grid.h` | Tile storage, bounds checks, tile weights, occupancy, unit positions, BFS path (`GetPath`), weighted search (`GetWeightedPath`, `GetWeightedDistance`, `GetWeightedNeighbours`), Manhattan neighbourhoods, line of sight, visible tiles. Search scratch buffers are generation-stamped so a search never clears arrays. |
+| `FGrid` | `Core/Grid.h` | Tile storage, bounds checks, tile weights, opaque tile tags (`SetTileTag`/`GetTileTag`/`SetTile`, never read by pathing/blocking/LOS), occupancy, unit positions, BFS path (`GetPath`), weighted search (`GetWeightedPath`, `GetWeightedDistance`, `GetWeightedNeighbours`), Manhattan neighbourhoods, line of sight, visible tiles. Search scratch buffers are generation-stamped so a search never clears arrays. |
 | `FGridEntity` | `Core/GridEntity.h` | Anything that can stand on a tile: unit id, team, virtual `CanMove`. Identity-based equality. |
 | `FBaseUnit` / `FUnit` | `Core/BaseUnit.h` | Health, AP/move budgets, weapon, status-effect slots, attribute bag (`SetAttribute`/`GetAttribute`), tag, display name, damage/heal, per-unit callbacks (`OnDeath`, `OnReceiveDamage`, `OnStatus*`). `FUnit` is the concrete unit with a convenient constructor. |
 | `FBaseStatusEffect` / `FStatusEffect` | `Core/StatusEffects/` | A status identified by a `uint8` type id with a tick counter. The generic `FStatusEffect` drains the unit's AP and movement on every tick (a "stun"). Derive from `FBaseStatusEffect` for custom behaviour. |
