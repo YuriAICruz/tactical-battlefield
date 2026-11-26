@@ -796,3 +796,284 @@ bool StartBattleCopiesUnitDataWeaponsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Grunt legacy range"), spawned[1]->GetWeaponAttackRange(), TestsHelper::kCombatWeapon.range);
 	return true;
 }
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookUnsetUsesDefaultFormulaTest)
+
+bool ResolveHookUnsetUsesDefaultFormulaTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	const int32 expected = attacker->CalculateWeaponAttackDamage({5, 5}, {6, 5});
+	FBattleAttackEvent last(nullptr, nullptr, -1);
+	controller.OnUnitDidAttacked = [&](const FBattleAttackEvent& e) { last = e; };
+
+	TestTrue(TEXT("Attack succeeds"), controller.AttackUnitWithWeapon(attacker, target));
+	TestEqual(TEXT("Default damage applied"), target->GetMaxHealth() - target->GetHealth(), expected);
+	TestEqual(TEXT("Event damage"), last.Damage, expected);
+	TestTrue(TEXT("Default is a hit"), last.Hit);
+	TestFalse(TEXT("Default is not a crit"), last.Critical);
+	TestEqual(TEXT("Default userValue"), last.UserValue, 0);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookDamageIsAppliedTest)
+
+bool ResolveHookDamageIsAppliedTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+	attacker->SetWeapons({TestsHelper::MakeWeapon("sword", 1, 1, 2, 2)});
+
+	const FBaseUnit* seenAttacker = nullptr;
+	const FBaseUnit* seenTarget = nullptr;
+	FName seenWeapon;
+	int32 damagedEvents = 0;
+	int32 damageSeen = 0;
+	controller.OnResolveAttack = [&](FBaseUnit& a, FBaseUnit& t, const FWeaponDef& w)
+	{
+		seenAttacker = &a;
+		seenTarget = &t;
+		seenWeapon = w.id;
+		return FAttackResult{7, true, false, 0};
+	};
+	controller.OnUnitDamaged = [&](const FBattleDamageEvent& e)
+	{
+		++damagedEvents;
+		damageSeen = e.Damage;
+	};
+
+	const int32 ap = attacker->GetActionPoints();
+	TestTrue(TEXT("Attack succeeds"), controller.AttackUnitWithWeapon(attacker, target));
+	TestEqual(TEXT("Hook got the attacker"), seenAttacker, static_cast<const FBaseUnit*>(attacker));
+	TestEqual(TEXT("Hook got the target"), seenTarget, static_cast<const FBaseUnit*>(target));
+	TestEqual(TEXT("Hook got the equipped weapon"), seenWeapon, FName("sword"));
+	TestEqual(TEXT("Hook damage applied"), target->GetHealth(), target->GetMaxHealth() - 7);
+	TestEqual(TEXT("OnUnitDamaged fired once"), damagedEvents, 1);
+	TestEqual(TEXT("OnUnitDamaged damage"), damageSeen, 7);
+	TestEqual(TEXT("AP spent"), attacker->GetActionPoints(), ap - 2);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookMissSpendsApWithoutDamageTest)
+
+bool ResolveHookMissSpendsApWithoutDamageTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	int32 attackEvents = 0;
+	int32 damagedEvents = 0;
+	FBattleAttackEvent last(nullptr, nullptr, -1);
+	controller.OnResolveAttack = [](FBaseUnit&, FBaseUnit&, const FWeaponDef&)
+	{
+		return FAttackResult{9, false, false, 3}; // damage is ignored on a miss
+	};
+	controller.OnUnitDidAttacked = [&](const FBattleAttackEvent& e)
+	{
+		++attackEvents;
+		last = e;
+	};
+	controller.OnUnitDamaged = [&](const FBattleDamageEvent&) { ++damagedEvents; };
+
+	const int32 ap = attacker->GetActionPoints();
+	TestTrue(TEXT("A miss is still a successful action"), controller.AttackUnitWithWeapon(attacker, target));
+	TestEqual(TEXT("Target untouched"), target->GetHealth(), target->GetMaxHealth());
+	TestEqual(TEXT("AP spent"), attacker->GetActionPoints(), ap - attacker->GetWeaponAttackCost());
+	TestEqual(TEXT("Attack event fired"), attackEvents, 1);
+	TestEqual(TEXT("Event damage is 0"), last.Damage, 0);
+	TestFalse(TEXT("Event says miss"), last.Hit);
+	TestEqual(TEXT("userValue forwarded on a miss"), last.UserValue, 3);
+	TestEqual(TEXT("OnUnitDamaged did not fire"), damagedEvents, 0);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookEventPayloadTest)
+
+bool ResolveHookEventPayloadTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	FBattleAttackEvent last(nullptr, nullptr, -1);
+	controller.OnResolveAttack = [](FBaseUnit&, FBaseUnit&, const FWeaponDef&)
+	{
+		return FAttackResult{3, true, true, 42};
+	};
+	controller.OnUnitDidAttacked = [&](const FBattleAttackEvent& e) { last = e; };
+
+	TestTrue(TEXT("Attack succeeds"), controller.AttackUnitWithWeapon(attacker, target));
+	TestEqual(TEXT("Attacker"), last.Attacker, static_cast<const FBaseUnit*>(attacker));
+	TestEqual(TEXT("Target"), last.Target, static_cast<const FBaseUnit*>(target));
+	TestEqual(TEXT("Damage"), last.Damage, 3);
+	TestTrue(TEXT("Hit"), last.Hit);
+	TestTrue(TEXT("Critical"), last.Critical);
+	TestEqual(TEXT("userValue"), last.UserValue, 42);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookKillTriggersDeathTest)
+
+bool ResolveHookKillTriggersDeathTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	int32 deaths = 0;
+	controller.OnUnitDied = [&](const FBaseUnit* u) { if (u == target) ++deaths; };
+	controller.OnResolveAttack = [](FBaseUnit&, FBaseUnit&, const FWeaponDef&)
+	{
+		return FAttackResult{999, true, true, 0};
+	};
+
+	TestTrue(TEXT("Attack succeeds"), controller.AttackUnitWithWeapon(attacker, target));
+	TestFalse(TEXT("Target is dead"), target->IsAlive());
+	TestEqual(TEXT("Death event fired once"), deaths, 1);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookNegativeDamageIsClampedTest)
+
+bool ResolveHookNegativeDamageIsClampedTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	FBattleAttackEvent last(nullptr, nullptr, -1);
+	controller.OnResolveAttack = [](FBaseUnit&, FBaseUnit&, const FWeaponDef&)
+	{
+		return FAttackResult{-5, true, false, 0};
+	};
+	controller.OnUnitDidAttacked = [&](const FBattleAttackEvent& e) { last = e; };
+
+	TestTrue(TEXT("Attack succeeds"), controller.AttackUnitWithWeapon(attacker, target));
+	TestEqual(TEXT("No healing through a negative hit"), target->GetHealth(), target->GetMaxHealth());
+	TestEqual(TEXT("Event damage clamped to 0"), last.Damage, 0);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookNotCalledWhenAttackInvalidTest)
+
+bool ResolveHookNotCalledWhenAttackInvalidTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* farTarget = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {9, 9});
+	FBaseUnit* ally = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 2});
+
+	int32 calls = 0;
+	controller.OnResolveAttack = [&](FBaseUnit&, FBaseUnit&, const FWeaponDef&)
+	{
+		++calls;
+		return FAttackResult{1, true, false, 0};
+	};
+
+	TestFalse(TEXT("Out of range"), controller.AttackUnitWithWeapon(attacker, farTarget));
+	TestFalse(TEXT("Friendly fire"), controller.AttackUnitWithWeapon(attacker, ally));
+	TestEqual(TEXT("Hook never called"), calls, 0);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PreviewAttackAppliesNothingTest)
+
+bool PreviewAttackAppliesNothingTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	int32 events = 0;
+	controller.OnUnitDidAttacked = [&](const FBattleAttackEvent&) { ++events; };
+	controller.OnUnitDamaged = [&](const FBattleDamageEvent&) { ++events; };
+	controller.OnResolveAttack = [](FBaseUnit&, FBaseUnit&, const FWeaponDef&)
+	{
+		return FAttackResult{6, true, true, 11};
+	};
+
+	const int32 ap = attacker->GetActionPoints();
+	const FAttackResult preview = controller.PreviewAttack(attacker, target);
+	TestEqual(TEXT("Preview damage"), preview.damage, 6);
+	TestTrue(TEXT("Preview hit"), preview.hit);
+	TestTrue(TEXT("Preview critical"), preview.critical);
+	TestEqual(TEXT("Preview userValue"), preview.userValue, 11);
+	TestEqual(TEXT("Target untouched"), target->GetHealth(), target->GetMaxHealth());
+	TestEqual(TEXT("AP untouched"), attacker->GetActionPoints(), ap);
+	TestEqual(TEXT("No events fired"), events, 0);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PreviewAttackMatchesRealAttackTest)
+
+bool PreviewAttackMatchesRealAttackTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	const FAttackResult preview = controller.PreviewAttack(attacker, target);
+	TestEqual(TEXT("No hook: preview is the default formula"), preview.damage,
+	          attacker->CalculateWeaponAttackDamage({5, 5}, {6, 5}));
+	TestTrue(TEXT("No hook: preview is a hit"), preview.hit);
+
+	controller.AttackUnitWithWeapon(attacker, target);
+	TestEqual(TEXT("Real attack deals the previewed damage"), target->GetMaxHealth() - target->GetHealth(),
+	          preview.damage);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(PreviewAttackInvalidInputsTest)
+
+bool PreviewAttackInvalidInputsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+
+	TestFalse(TEXT("Null attacker"), controller.PreviewAttack(nullptr, target).hit);
+	TestFalse(TEXT("Null target"), controller.PreviewAttack(attacker, nullptr).hit);
+
+	attacker->SetWeapons({});
+	const FAttackResult unarmed = controller.PreviewAttack(attacker, target);
+	TestFalse(TEXT("Unarmed attacker"), unarmed.hit);
+	TestEqual(TEXT("Unarmed damage"), unarmed.damage, 0);
+	return true;
+}
+
+BATTLEFIELD_CONTROLLER_TEST(ResolveHookMayReadQueriesTest)
+
+bool ResolveHookMayReadQueriesTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* attacker = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* target = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+	TestsHelper::SpawnUnit(controller, ETeams::Enemy, {5, 6});
+
+	// Damage = number of enemies the attacker could reach: a read-only query inside the hook is allowed.
+	controller.OnResolveAttack = [&](FBaseUnit& a, FBaseUnit&, const FWeaponDef&)
+	{
+		std::vector<const FGridEntity*> reachable;
+		controller.GetQueryController()->GetAttackableTargets(&a, reachable);
+		return FAttackResult{static_cast<int32>(reachable.size()), true, false, 0};
+	};
+
+	TestTrue(TEXT("Attack succeeds"), controller.AttackUnitWithWeapon(attacker, target));
+	TestEqual(TEXT("Damage came from the query"), target->GetMaxHealth() - target->GetHealth(), 2);
+	return true;
+}
