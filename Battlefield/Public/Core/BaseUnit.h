@@ -111,6 +111,20 @@ public:
 
 	void ResetTurnStats();
 
+	// Attribute bag: game-defined named integers (STR, SKL, level, XP...). Stored, never interpreted.
+	void SetAttribute(const FName& name, int32 value);
+	int32 GetAttribute(const FName& name, int32 defaultValue = 0) const;
+	bool HasAttribute(const FName& name) const;
+	const std::map<FName, int32>& GetAttributes() const;
+
+	// Free-form class/archetype label. Not interpreted.
+	const FName& GetTag() const;
+	void SetTag(const FName& tag);
+
+	// Display name, copied from FUnitData at spawn.
+	const FName& GetName() const;
+	void SetName(const FName& name);
+
 protected:
 	void SetCombatStats(const FCombatStats& combatStats, const FTurnResources& turnResources);
 	void SetCombatWeapon(const FCombatWeapon& combatWeapon);
@@ -123,6 +137,9 @@ private:
 	FTurnResources mBaseTurnResources;
 	FTurnResources mCurrentTurnResources;
 	FCombatWeapon mCurrentCombatWeapon;
+	std::map<FName, int32> mAttributes;
+	FName mTag;
+	FName mName;
 	std::unique_ptr<FBaseStatusEffect> mStatusEffectsBuffer[MAX_EFFECTS_PER_UNIT];
 };
 

@@ -290,6 +290,47 @@ void FBaseUnit::ResetTurnStats()
 	AddStatusTurnTicks();
 }
 
+void FBaseUnit::SetAttribute(const FName& name, int32 value)
+{
+	mAttributes[name] = value;
+}
+
+int32 FBaseUnit::GetAttribute(const FName& name, int32 defaultValue) const
+{
+	auto it = mAttributes.find(name);
+	return it != mAttributes.end() ? it->second : defaultValue;
+}
+
+bool FBaseUnit::HasAttribute(const FName& name) const
+{
+	return mAttributes.find(name) != mAttributes.end();
+}
+
+const std::map<FName, int32>& FBaseUnit::GetAttributes() const
+{
+	return mAttributes;
+}
+
+const FName& FBaseUnit::GetTag() const
+{
+	return mTag;
+}
+
+void FBaseUnit::SetTag(const FName& tag)
+{
+	mTag = tag;
+}
+
+const FName& FBaseUnit::GetName() const
+{
+	return mName;
+}
+
+void FBaseUnit::SetName(const FName& name)
+{
+	mName = name;
+}
+
 int32 FBaseUnit::GetWeaponAttackCost() const
 {
 	return mCurrentCombatWeapon.baseCost; //TODO: get attack cost based on the weapon
