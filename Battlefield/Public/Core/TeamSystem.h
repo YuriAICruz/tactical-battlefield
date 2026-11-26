@@ -16,8 +16,12 @@ public:
 	bool HasWinner() const;
 	ETeams GetWinner() const;
 	uint32 GetNextId() const;
+	// When true, CanAct rejects units that have waited this phase. Default false.
+	void SetRequireWait(bool require);
+	bool GetRequireWait() const;
 
 private:
+	bool mRequireWait = false;
 	ETeams mCurrentTeam;
 	uint32 mCurrentTeamsUnitsCount;
 	std::vector<const FBaseUnit*> mActors;

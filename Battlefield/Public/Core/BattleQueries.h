@@ -25,6 +25,10 @@ public:
 	ETeams GetCurrentTeam() const;
 	void GetUnitsForTeam(ETeams filterMask, std::vector<FBaseUnit*>& unitsList) const;
 	void GetUnitsForCurrentTeam(std::vector<FBaseUnit*>& unitsList) const;
+	// Living units of the team that have not waited this phase.
+	void GetActableUnits(ETeams team, std::vector<FBaseUnit*>& unitsList) const;
+	// True when the team has no living unit left that has not waited (also true for an empty team).
+	bool AllUnitsWaited(ETeams team) const;
 	FBaseUnit* GetUnitAt(FGrid::FGridCoordinate position) const;
 	void GetAttackableTargets(const FBaseUnit* unit, std::vector<const FGridEntity*>& targets) const;
 	void GetVisibleUnits(const FBaseUnit* unit, std::vector<const FGridEntity*>& units, ETeams filterMask) const;

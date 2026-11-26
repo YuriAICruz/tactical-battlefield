@@ -655,4 +655,238 @@ bool BattleEndedEventTest::RunTest(const FString& Parameters)
 }
 
 
+// --------------- Unit turn state (wait) Tests
+
+BATTLEFIELD_FLOW_TEST(UnitCanActFalseAfterWaitRegardlessOfResourcesTest)
+
+bool UnitCanActFalseAfterWaitRegardlessOfResourcesTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+
+	TestFalse(TEXT("Not waited at spawn"), unit->HasWaited());
+	TestTrue(TEXT("Can act at spawn"), unit->CanAct());
+
+	unit->Wait();
+
+	TestTrue(TEXT("Waited"), unit->HasWaited());
+	TestTrue(TEXT("Still has AP"), unit->GetActionPoints() > 0);
+	TestTrue(TEXT("Still has move"), unit->GetMovementPoints() > 0);
+	TestFalse(TEXT("CanAct false after wait"), unit->CanAct());
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(WaitUnitSetsWaitedAndFiresEventTest)
+
+bool WaitUnitSetsWaitedAndFiresEventTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+
+	int32 events = 0;
+	const FBaseUnit* eventUnit = nullptr;
+	controller.OnUnitWaited = [&](const FBaseUnit* u)
+	{
+		++events;
+		eventUnit = u;
+	};
+
+	TestTrue(TEXT("WaitUnit succeeds"), controller.WaitUnit(unit));
+	TestTrue(TEXT("Unit waited"), unit->HasWaited());
+	TestEqual(TEXT("One event"), events, 1);
+	TestTrue(TEXT("Event carries the unit"), eventUnit == unit);
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(WaitUnitRejectsInvalidCasesTest)
+
+bool WaitUnitRejectsInvalidCasesTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	FBaseUnit* player = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {2, 1});
+	FBaseUnit* victim = TestsHelper::SpawnUnit(controller, ETeams::Player, {3, 1});
+
+	int32 events = 0;
+	controller.OnUnitWaited = [&](const FBaseUnit*) { ++events; };
+
+	TestFalse(TEXT("Null unit"), controller.WaitUnit(nullptr));
+	TestFalse(TEXT("Not the current team"), controller.WaitUnit(enemy));
+	TestFalse(TEXT("Enemy did not wait"), enemy->HasWaited());
+
+	TestTrue(TEXT("First wait"), controller.WaitUnit(player));
+	TestFalse(TEXT("Second wait is rejected"), controller.WaitUnit(player));
+
+	victim->ReceiveDamage(1000);
+	TestFalse(TEXT("Dead unit"), controller.WaitUnit(victim));
+	TestFalse(TEXT("Dead unit did not wait"), victim->HasWaited());
+
+	TestEqual(TEXT("Only the valid wait raised an event"), events, 1);
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(WaitBlocksMoveAndAttackWhenRequiredTest)
+
+bool WaitBlocksMoveAndAttackWhenRequiredTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	controller.SetRequireWait(true);
+	FBaseUnit* player = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {2, 1});
+
+	TestTrue(TEXT("Flag is on"), controller.GetRequireWait());
+	TestTrue(TEXT("Wait"), controller.WaitUnit(player));
+
+	const int32 ap = player->GetActionPoints();
+	const int32 move = player->GetMovementPoints();
+	const int32 enemyHealth = enemy->GetHealth();
+
+	TestFalse(TEXT("MoveUnit blocked"), controller.MoveUnit(player, {1, 2}));
+	TestFalse(TEXT("MoveUnitRaw blocked"), controller.MoveUnitRaw(player, {1, 2}, 1));
+	TestFalse(TEXT("Attack blocked"), controller.AttackUnitWithWeapon(player, enemy));
+	TestFalse(TEXT("AttackUnitRaw blocked"), controller.AttackUnitRaw(player, enemy, 5, 1, 1));
+	TestFalse(TEXT("DoUnitAction blocked"), controller.DoUnitAction(player));
+
+	TestTrue(TEXT("Unit did not move"), grid.GetUnitPosition(player) == FGrid::FGridCoordinate(1, 1));
+	TestEqual(TEXT("AP untouched"), player->GetActionPoints(), ap);
+	TestEqual(TEXT("Move untouched"), player->GetMovementPoints(), move);
+	TestEqual(TEXT("Enemy undamaged"), enemy->GetHealth(), enemyHealth);
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(WaitedUnitDoesNotBlockOtherUnitsTest)
+
+bool WaitedUnitDoesNotBlockOtherUnitsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	controller.SetRequireWait(true);
+	FBaseUnit* waiter = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* other = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 3});
+
+	controller.WaitUnit(waiter);
+
+	TestTrue(TEXT("Other unit still moves"), controller.MoveUnit(other, {1, 4}));
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(WaitClearedOnTeamNextTurnTest)
+
+bool WaitClearedOnTeamNextTurnTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	controller.SetRequireWait(true);
+	FBaseUnit* player = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {2, 1});
+
+	controller.WaitUnit(player);
+	TestTrue(TEXT("Waited"), player->HasWaited());
+
+	controller.EndTurn(); // Enemy
+	TestTrue(TEXT("Still waited during the enemy turn"), player->HasWaited());
+	TestFalse(TEXT("Enemy has not waited"), enemy->HasWaited());
+	controller.WaitUnit(enemy);
+	controller.EndTurn(); // Neutral
+	TestTrue(TEXT("Enemy wait persists until its next turn"), enemy->HasWaited());
+	TestTrue(TEXT("Player still waited"), player->HasWaited());
+	controller.EndTurn(); // Player again
+
+	TestFalse(TEXT("Player wait cleared on its next turn"), player->HasWaited());
+	TestTrue(TEXT("Player can act again"), player->CanAct());
+	TestTrue(TEXT("Player moves again"), controller.MoveUnit(player, {1, 2}));
+
+	controller.EndTurn(); // Enemy again
+	TestFalse(TEXT("Enemy wait cleared on its next turn"), enemy->HasWaited());
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(WaitHasNoEffectOnActionsWhenFlagOffTest)
+
+bool WaitHasNoEffectOnActionsWhenFlagOffTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	FBaseUnit* player = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {2, 1});
+
+	TestFalse(TEXT("Flag defaults to off"), controller.GetRequireWait());
+	TestTrue(TEXT("Wait still recorded"), controller.WaitUnit(player));
+	TestTrue(TEXT("Unit is marked waited"), player->HasWaited());
+
+	TestTrue(TEXT("Move still works"), controller.MoveUnit(player, {1, 2}));
+	TestTrue(TEXT("Attack still works"), controller.AttackUnitWithWeapon(player, enemy));
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(GetActableUnitsExcludesWaitedAndDeadTest)
+
+bool GetActableUnitsExcludesWaitedAndDeadTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	const FBattleQueries* query = controller.GetQueryController();
+	FBaseUnit* a = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* b = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 2});
+	FBaseUnit* c = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 3});
+	TestsHelper::SpawnUnit(controller, ETeams::Enemy, {5, 5});
+
+	std::vector<FBaseUnit*> actable;
+	query->GetActableUnits(ETeams::Player, actable);
+	TestEqual(TEXT("All three can act"), static_cast<int32>(actable.size()), 3);
+
+	controller.WaitUnit(a);
+	c->ReceiveDamage(1000);
+
+	query->GetActableUnits(ETeams::Player, actable);
+	TestEqual(TEXT("Only b remains"), static_cast<int32>(actable.size()), 1);
+	TestTrue(TEXT("It is b"), !actable.empty() && actable[0] == b);
+
+	query->GetActableUnits(ETeams::Enemy, actable);
+	TestEqual(TEXT("Other team is unaffected"), static_cast<int32>(actable.size()), 1);
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(AllUnitsWaitedTest)
+
+bool AllUnitsWaitedTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	const FBattleQueries* query = controller.GetQueryController();
+	FBaseUnit* a = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* b = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 2});
+	TestsHelper::SpawnUnit(controller, ETeams::Enemy, {5, 5});
+
+	TestFalse(TEXT("Nobody waited"), query->AllUnitsWaited(ETeams::Player));
+	controller.WaitUnit(a);
+	TestFalse(TEXT("One of two waited"), query->AllUnitsWaited(ETeams::Player));
+	controller.WaitUnit(b);
+	TestTrue(TEXT("Both waited"), query->AllUnitsWaited(ETeams::Player));
+	TestFalse(TEXT("Enemy team not affected"), query->AllUnitsWaited(ETeams::Enemy));
+	return true;
+}
+
+BATTLEFIELD_FLOW_TEST(AllUnitsWaitedIgnoresDeadUnitsTest)
+
+bool AllUnitsWaitedIgnoresDeadUnitsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller(&grid);
+	const FBattleQueries* query = controller.GetQueryController();
+	FBaseUnit* a = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* b = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 2});
+	TestsHelper::SpawnUnit(controller, ETeams::Enemy, {5, 5});
+
+	b->ReceiveDamage(1000);
+	TestFalse(TEXT("Living unit has not waited"), query->AllUnitsWaited(ETeams::Player));
+	controller.WaitUnit(a);
+	TestTrue(TEXT("Dead unit does not count"), query->AllUnitsWaited(ETeams::Player));
+	return true;
+}
+
 // --------------- Events Tests End

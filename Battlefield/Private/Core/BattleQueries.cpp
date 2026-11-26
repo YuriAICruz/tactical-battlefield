@@ -65,6 +65,19 @@ void FBattleQueries::GetUnitsForCurrentTeam(std::vector<FBaseUnit*>& unitsList) 
 	GetUnitsForTeam(GetCurrentTeam(), unitsList);
 }
 
+void FBattleQueries::GetActableUnits(ETeams team, std::vector<FBaseUnit*>& unitsList) const
+{
+	GetUnitsForTeam(team, unitsList);
+	std::erase_if(unitsList, [](const FBaseUnit* unit) { return unit->HasWaited(); });
+}
+
+bool FBattleQueries::AllUnitsWaited(ETeams team) const
+{
+	std::vector<FBaseUnit*> actable;
+	GetActableUnits(team, actable);
+	return actable.empty();
+}
+
 FBaseUnit* FBattleQueries::GetUnitAt(FGrid::FGridCoordinate position) const
 {
 	const FGrid::FTileData* tile = mpGrid->TryGetTile(position);
