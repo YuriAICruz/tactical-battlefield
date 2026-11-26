@@ -3,8 +3,8 @@
 ## What is tested
 
 `BattlefieldTests.dll` contains the 166 automation tests of the Unreal module, transpiled from
-`Source/Battlefield/Private/Tests`. The bodies are the originals (same names, same assertions); only the framework
-underneath changed.
+`Source/Battlefield/Private/Tests` (the bodies are the originals; only the framework underneath changed), plus the
+12 `Bugfix` tests added for `features/01-bugfixes.md` (178 in total).
 
 | Suite (name prefix) | Source file | Tests | Covers |
 |---|---|---|---|
@@ -14,6 +14,7 @@ underneath changed.
 | `Hellmarch.Battlefield.Controller.*` | `BattlefieldControllerTests.cpp` | 20 | spawn, move, attack, end turn, death removal, victory |
 | `Hellmarch.Battlefield.Query.*` | `BattlefieldQueryTests.cpp` | 22 | movement area, targets, visibility, line of sight, valid actions, winner |
 | `Hellmarch.Battlefield.Flow.*` | `BattlefieldFlowTests.cpp` | 17 | start battle, full turn cycles, an AI-vs-AI simulation, every controller event |
+| `Hellmarch.Battlefield.Bugfix.*` | `BugfixTests.cpp` | 12 | move event payload, heal target rule, current-team check on actions, passing through allies, no-winner on mutual destruction, grid reuse across battles, `BattleHealEvent` alias |
 
 ## Running
 
