@@ -972,3 +972,132 @@ bool WeightedDistancePrefersCheaperRouteTest::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+GRID_TEST(TileTagDefaultIsZeroTest)
+
+bool TileTagDefaultIsZeroTest::RunTest(const FString& Parameters)
+{
+	const FGrid Grid = TestsHelper::CreateTestGrid();
+
+	TestEqual(TEXT("Fresh tile has tag 0"), Grid.GetTileTag(0, 0), 0);
+	TestEqual(TEXT("Fresh tile data has tag 0"), Grid.TryGetTile(5, 5)->tag, 0);
+
+	return true;
+}
+
+GRID_TEST(TileTagSetGetTest)
+
+bool TileTagSetGetTest::RunTest(const FString& Parameters)
+{
+	FGrid Grid = TestsHelper::CreateTestGrid();
+
+	Grid.SetTileTag(3, 4, 7);
+	Grid.SetTileTag(9, 9, -2);
+
+	TestEqual(TEXT("Tag read back"), Grid.GetTileTag(3, 4), 7);
+	TestEqual(TEXT("Negative tag read back"), Grid.GetTileTag(9, 9), -2);
+	TestEqual(TEXT("Tag is exposed on the tile"), Grid.TryGetTile(3, 4)->tag, 7);
+	TestEqual(TEXT("Neighbour untouched"), Grid.GetTileTag(4, 3), 0);
+
+	Grid.SetTileTag(3, 4, 0);
+	TestEqual(TEXT("Tag can be cleared"), Grid.GetTileTag(3, 4), 0);
+
+	return true;
+}
+
+GRID_TEST(TileTagOutOfBoundsTest)
+
+bool TileTagOutOfBoundsTest::RunTest(const FString& Parameters)
+{
+	FGrid Grid = TestsHelper::CreateTestGrid();
+
+	TestEqual(TEXT("Negative coords return 0"), Grid.GetTileTag(-1, -1), 0);
+	TestEqual(TEXT("Past width returns 0"), Grid.GetTileTag(10, 0), 0);
+	TestEqual(TEXT("Past height returns 0"), Grid.GetTileTag(0, 10), 0);
+
+	// Must not crash nor write anywhere.
+	Grid.SetTileTag(-1, 0, 5);
+	Grid.SetTileTag(10, 10, 5);
+	Grid.SetTile(100, 100, 3, 5);
+
+	TestEqual(TEXT("Still 0 out of bounds"), Grid.GetTileTag(10, 10), 0);
+	TestEqual(TEXT("In-bounds tiles unaffected"), Grid.GetTileTag(0, 0), 0);
+
+	return true;
+}
+
+GRID_TEST(TileSetWeightAndTagTest)
+
+bool TileSetWeightAndTagTest::RunTest(const FString& Parameters)
+{
+	FGrid Grid = TestsHelper::CreateTestGrid();
+
+	Grid.SetTile(2, 3, 4, 9);
+
+	const FGrid::FTileData* Tile = Grid.TryGetTile(2, 3);
+	TestEqual(TEXT("Weight set"), static_cast<int32>(Tile->weight), 4);
+	TestEqual(TEXT("Tag set"), Tile->tag, 9);
+	TestEqual(TEXT("Tag via getter"), Grid.GetTileTag(2, 3), 9);
+
+	return true;
+}
+
+GRID_TEST(TileTagDoesNotAffectPathingTest)
+
+bool TileTagDoesNotAffectPathingTest::RunTest(const FString& Parameters)
+{
+	FGrid Plain = TestsHelper::CreateTestGrid();
+	FGrid Tagged = TestsHelper::CreateTestGrid();
+
+	// Tag every tile, including a wall of tags across the straight route.
+	for (int32 y = 0; y < 10; ++y)
+	{
+		for (int32 x = 0; x < 10; ++x)
+		{
+			Tagged.SetTileTag(x, y, 1 + x + y);
+		}
+	}
+
+	std::vector<FGrid::FGridCoordinate> PlainPath;
+	std::vector<FGrid::FGridCoordinate> TaggedPath;
+	TestTrue(TEXT("Plain path"), Plain.GetPath({0, 0}, {5, 5}, 20, PlainPath));
+	TestTrue(TEXT("Tagged path"), Tagged.GetPath({0, 0}, {5, 5}, 20, TaggedPath));
+	TestTrue(TEXT("BFS path identical"), PlainPath == TaggedPath);
+
+	TestTrue(TEXT("Plain weighted path"), Plain.GetWeightedPath({0, 0}, {5, 5}, PlainPath, 20, true));
+	TestTrue(TEXT("Tagged weighted path"), Tagged.GetWeightedPath({0, 0}, {5, 5}, TaggedPath, 20, true));
+	TestTrue(TEXT("Weighted path identical"), PlainPath == TaggedPath);
+
+	TestEqual(TEXT("Weighted distance unchanged"),
+	          Tagged.GetWeightedDistance({0, 0}, {5, 5}, true), Plain.GetWeightedDistance({0, 0}, {5, 5}, true));
+
+	std::vector<FGrid::FGridCoordinate> PlainArea;
+	std::vector<FGrid::FGridCoordinate> TaggedArea;
+	Plain.GetWeightedNeighbours({5, 5}, PlainArea, 3, true);
+	Tagged.GetWeightedNeighbours({5, 5}, TaggedArea, 3, true);
+	TestEqual(TEXT("Reachable area size unchanged"), static_cast<int32>(TaggedArea.size()),
+	          static_cast<int32>(PlainArea.size()));
+
+	return true;
+}
+
+GRID_TEST(TileTagDoesNotAffectBlockingOrSightTest)
+
+bool TileTagDoesNotAffectBlockingOrSightTest::RunTest(const FString& Parameters)
+{
+	FGrid Grid = TestsHelper::CreateTestGrid();
+
+	Grid.SetTileTag(2, 0, 5);
+	Grid.SetTileTag(3, 0, 5);
+
+	TestFalse(TEXT("Tagged tile is not blocked"), Grid.IsBlocked(2, 0));
+	TestTrue(TEXT("Line of sight across tagged tiles (blocked check)"), Grid.HasLineOfSight({0, 0}, {5, 0}, true));
+	TestTrue(TEXT("Line of sight across tagged tiles"), Grid.HasLineOfSight({0, 0}, {5, 0}, false));
+
+	// Tagging does not unblock an impassable tile either.
+	Grid.SetTile(4, 0, FGrid::kImpassableWeight, 5);
+	TestTrue(TEXT("Impassable tile stays blocked"), Grid.IsBlocked(4, 0));
+	TestFalse(TEXT("Impassable tile still blocks sight"), Grid.HasLineOfSight({0, 0}, {5, 0}, false));
+
+	return true;
+}
