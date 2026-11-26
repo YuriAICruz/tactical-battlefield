@@ -5,7 +5,7 @@
 #include "Platform/BattlefieldLog.h"
 
 FBattleController::FBattleController(FGrid* grid) :
-	mQueries(&mTeamSystem, grid, &mBattlefield),
+	mQueries(&mTeamSystem, grid, &mBattlefield, &mActions),
 	mBattlefield(&mTeamSystem),
 	mpGrid(grid)
 {
@@ -359,8 +359,99 @@ bool FBattleController::HasStatus(FBaseUnit* unit, uint8 statusId)
 	return unit->HasStatusType(statusId);
 }
 
+bool FBattleController::RegisterAction(const FActionDef& action)
+{
+	if (action.id.empty())
+	{
+		return false;
+	}
+
+	for (FActionDef& existing : mActions)
+	{
+		if (existing.id == action.id)
+		{
+			existing = action;
+			return true;
+		}
+	}
+	mActions.push_back(action);
+	return true;
+}
+
+bool FBattleController::UnregisterAction(const FName& id)
+{
+	auto it = std::find_if(mActions.begin(), mActions.end(), [&](const FActionDef& a) { return a.id == id; });
+	if (it == mActions.end())
+	{
+		return false;
+	}
+	mActions.erase(it);
+	return true;
+}
+
+const std::vector<FActionDef>& FBattleController::GetActions() const
+{
+	return mActions;
+}
+
+bool FBattleController::PerformAction(FBaseUnit* unit, const FName& actionId, FGrid::FGridCoordinate target) const
+{
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
+	if (!unit)
+	{
+		return false;
+	}
+
+	auto it = std::find_if(mActions.begin(), mActions.end(), [&](const FActionDef& a) { return a.id == actionId; });
+	if (it == mActions.end())
+	{
+		return false;
+	}
+	// Copy: execute is allowed to change the registry, which would invalidate the iterator.
+	const FActionDef action = *it;
+
+	if (action.apCost < 0 || !mTeamSystem.CanAct(unit) || !unit->CanDoAction(action.apCost))
+	{
+		return false;
+	}
+	if (action.canUse && !action.canUse(*unit))
+	{
+		return false;
+	}
+	if (action.execute && !action.execute(*unit, target))
+	{
+		return false;
+	}
+
+	if (action.apCost > 0)
+	{
+		unit->SpendActionPoints(action.apCost);
+	}
+	if (OnUnitActionPerformed)
+	{
+		OnUnitActionPerformed(unit);
+	}
+	if (OnActionPerformed)
+	{
+		OnActionPerformed(unit, action.id);
+	}
+	if (action.endsUnitTurn)
+	{
+		WaitUnit(unit);
+	}
+	return true;
+}
+
 bool FBattleController::DoUnitAction(FBaseUnit* unit) const
 {
+	for (const FActionDef& action : mActions)
+	{
+		if (action.id == kDefaultActionId)
+		{
+			return PerformAction(unit, kDefaultActionId);
+		}
+	}
+
 	if (!mTeamSystem.CanAct(unit))
 	{
 		return false;

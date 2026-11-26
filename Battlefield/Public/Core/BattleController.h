@@ -1,6 +1,7 @@
 #pragma once
 #include "Platform/CoreTypes.h"
 #include "BattleQueries.h"
+#include "Core/Action.h"
 #include "Core/BattlefieldData.h"
 #include "Events/AttackResult.h"
 #include "Events/BattleAttackEvent.h"
@@ -41,7 +42,10 @@ public:
 	std::function<void(const FBattleMoveEvent&)> OnUnitMoved;
 	std::function<void(const FBattleAttackEvent&)> OnUnitDidAttacked;
 	std::function<void(const FBattleHealEvent&)> OnUnitDidHealed;
+	// Fired by DoUnitAction and PerformAction (kept one-argument for old callers).
 	std::function<void(const FBaseUnit*)> OnUnitActionPerformed;
+	// Fired by PerformAction right after OnUnitActionPerformed, with the id of the registered action.
+	std::function<void(const FBaseUnit*, const FName& actionId)> OnActionPerformed;
 	std::function<void(const FBaseUnit*)> OnUnitWaited;
 	std::function<void(const FBattleDamageEvent&)> OnUnitDamaged;
 	std::function<void(const FBattleHealedEvent&)> OnUnitHealed;
@@ -82,6 +86,17 @@ public:
 	static void GetStatus(FBaseUnit* unit, std::vector<FBaseStatusEffect*>& effects);
 	static bool HasStatus(FBaseUnit* unit, uint8 statusId);
 
+	// Action registry. Registering an id that already exists replaces it. Empty ids are rejected.
+	bool RegisterAction(const FActionDef& action);
+	bool UnregisterAction(const FName& id);
+	const std::vector<FActionDef>& GetActions() const;
+	// Validates (unit non-null, its team's turn and able to act, action registered, canUse, enough AP), calls
+	// execute(unit, target); on true spends apCost, fires OnUnitActionPerformed + OnActionPerformed, then, when
+	// endsUnitTurn, waits the unit (WaitUnit, so OnUnitWaited fires). On any failure nothing is spent.
+	// Unlike OnResolveAttack, execute may mutate the battle (it is the action).
+	bool PerformAction(FBaseUnit* unit, const FName& actionId, FGrid::FGridCoordinate target = {}) const;
+	// Deprecated: delegates to PerformAction(unit, "default") when a client registered that id; otherwise keeps
+	// the old stub behaviour (cost 1, no effect, OnUnitActionPerformed).
 	bool DoUnitAction(FBaseUnit* unit) const;
 	// Ends the unit's phase. Fails for null/dead units, units not on the current team and units that already waited.
 	bool WaitUnit(FBaseUnit* unit) const;
@@ -97,6 +112,7 @@ private:
 	void UnitDied(const FBaseUnit* target) const;
 	FAttackResult ResolveAttack(FBaseUnit* attacker, FBaseUnit* target, const FWeaponDef& weapon) const;
 
+	std::vector<FActionDef> mActions;
 	mutable bool mResolvingAttack = false; // true while OnResolveAttack runs (re-entrancy guard)
 
 	int32 mTurnCount = 0;

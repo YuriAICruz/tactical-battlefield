@@ -1,6 +1,7 @@
 #pragma once
 #include "Platform/CoreTypes.h"
 #include "Core/Grid.h"
+#include "Core/Action.h"
 #include "Enums/BattleAction.h"
 #include "Enums/Teams.h"
 
@@ -11,10 +12,12 @@ class FTeamSystem;
 class BATTLEFIELD_API FBattleQueries
 {
 public:
-	FBattleQueries(const FTeamSystem* teamSystem, const FGrid* grid, const FBattlefieldData* battlefield) :
+	FBattleQueries(const FTeamSystem* teamSystem, const FGrid* grid, const FBattlefieldData* battlefield,
+	               const std::vector<FActionDef>* actions = nullptr) :
 		mTeamSystem(teamSystem),
 		mpGrid(grid),
-		mBattlefield(battlefield)
+		mBattlefield(battlefield),
+		mActions(actions)
 	{
 	}
 
@@ -53,9 +56,13 @@ public:
 	               std::vector<FGrid::FGridCoordinate>& path) const;
 	int32 GetUnitMovementCost(const FBaseUnit* unit, FGrid::FGridCoordinate destination) const;
 	static EBattleAction GetValidActions(const FBaseUnit* unit, int32 cost = 1);
+	// Registered actions the living unit has the AP for and whose canUse (if any) returns true. Pointers stay
+	// valid until the registry changes.
+	void GetAvailableActions(const FBaseUnit* unit, std::vector<const FActionDef*>& actions) const;
 
 private:
 	const FTeamSystem* mTeamSystem;
 	const FGrid* mpGrid;
 	const FBattlefieldData* mBattlefield;
+	const std::vector<FActionDef>* mActions;
 };

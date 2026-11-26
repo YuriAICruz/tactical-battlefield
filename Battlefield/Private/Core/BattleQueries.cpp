@@ -302,3 +302,25 @@ EBattleAction FBattleQueries::GetValidActions(const FBaseUnit* unit, int32 cost)
 
 	return actions;
 }
+
+void FBattleQueries::GetAvailableActions(const FBaseUnit* unit, std::vector<const FActionDef*>& actions) const
+{
+	actions.clear();
+	if (!unit || !mActions || !unit->IsAlive())
+	{
+		return;
+	}
+
+	for (const FActionDef& action : *mActions)
+	{
+		if (action.apCost < 0 || !unit->CanDoAction(action.apCost))
+		{
+			continue;
+		}
+		if (action.canUse && !action.canUse(*unit))
+		{
+			continue;
+		}
+		actions.push_back(&action);
+	}
+}

@@ -106,6 +106,10 @@ public:
 	bool SpendActionPoints(int32 value);
 
 	FBaseStatusEffect* AddStatusEffect(uint8 StatusId);
+	// Client-created effect (e.g. defined in Lua). The unit takes ownership. Returns nullptr (and the effect is
+	// destroyed) when the effect is null, was built for another unit, its type is already present or the slots
+	// are full. Fires OnStatusAdded like the uint8 overload.
+	FBaseStatusEffect* AddStatusEffect(std::unique_ptr<FBaseStatusEffect> effect);
 	bool RemoveStatusEffect(uint8 type);
 	FBaseStatusEffect* GetStatusEffect(uint8 type) const;
 	void GetStatusEffects(std::vector<FBaseStatusEffect*>& effects) const;

@@ -194,6 +194,16 @@ FBaseStatusEffect* FBaseUnit::AddStatusEffect(uint8 StatusId)
 		return nullptr;
 	}
 
+	return AddStatusEffect(std::make_unique<FStatusEffect>(this, StatusId));
+}
+
+FBaseStatusEffect* FBaseUnit::AddStatusEffect(std::unique_ptr<FBaseStatusEffect> newEffect)
+{
+	if (!newEffect || newEffect->GetUnit() != this || HasStatusType(newEffect->GetType()))
+	{
+		return nullptr;
+	}
+
 	for (uint8 i = 0; i < MAX_EFFECTS_PER_UNIT; ++i)
 	{
 		if (mStatusEffectsBuffer[i])
@@ -201,7 +211,7 @@ FBaseStatusEffect* FBaseUnit::AddStatusEffect(uint8 StatusId)
 			continue;
 		}
 
-		mStatusEffectsBuffer[i] = std::make_unique<FStatusEffect>(this, StatusId);
+		mStatusEffectsBuffer[i] = std::move(newEffect);
 		FBaseStatusEffect* effect = mStatusEffectsBuffer[i].get();
 
 		if (OnStatusAdded)
