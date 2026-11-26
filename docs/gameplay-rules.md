@@ -87,8 +87,8 @@ allied units; those tiles are crossed but never listed. `FBaseUnit::GetMovementC
 
 1. both pointers are non-null and the units are **hostile** (different teams, neither `Null`),
 2. it is the attacker's team's turn and the attacker can act,
-3. the attacker has at least `weapon.baseCost` AP,
-4. the Manhattan distance between them is `≤ weapon.range`.
+3. the attacker has an equipped weapon and at least `weapon.apCost` AP (legacy `FCombatWeapon.baseCost`),
+4. the Manhattan distance between them is within the equipped weapon band `minRange ≤ distance ≤ maxRange` (a legacy `FCombatWeapon` is the band `1..range`).
 
 Damage: `distance = max(1, manhattan)`, `multiplier = min(1, aim / distance)` using **integer** division,
 `damage = baseDamage × multiplier`. So a shot is full damage while `distance ≤ aim` and **zero** beyond that.
@@ -122,7 +122,9 @@ is blocked/occupied/off-board, or creation fails. `SpawnUnit` can also be used o
 |---|---|
 | `GetUnitsForTeam(mask, out)` / `GetUnitsForCurrentTeam` | living units of the masked teams |
 | `GetUnitAt(coord)` | unit on a tile or `nullptr` |
-| `GetAttackableTargets(unit, out)` | occupants within weapon range whose team is not the unit's own |
+| `GetAttackableTargets(unit, out)` | occupants inside the equipped weapon band whose team is not the unit's own |
+| `GetAttackableTargetsFrom(unit, tile, out)` | the same, as if the unit stood on `tile` |
+| `GetAttackArea(unit, tile, out)` | tiles inside the equipped weapon band from `tile` (overlay and AI), empty when unarmed |
 | `GetVisibleUnits(unit, out, mask)` | units of other teams inside the weighted vision area |
 | `HasLineOfSight(unit, coord)` | within vision range and not blocked by walls |
 | `FindNearestUnit(unit, range)` | nearest living unit of another team inside the Manhattan radius `range`, ranked by weighted distance |
