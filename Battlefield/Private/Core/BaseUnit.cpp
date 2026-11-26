@@ -63,13 +63,14 @@ int32 FBaseUnit::CalculateWeaponAttackDamage(FGrid::FGridCoordinate position, FG
 	// TODO: Create a BP way to do this calculation on the weapon
 	int32 distance = GetDistance(position, targetPosition);
 	float mul = std::min(1, mBaseCombatStats.aim / distance);
-	return mCurrentCombatWeapon.baseDamage * mul;
+	const FWeaponDef* weapon = GetEquippedWeapon();
+	return weapon ? weapon->baseDamage * mul : 0;
 }
 
 bool FBaseUnit::InRange(FGrid::FGridCoordinate position, FGrid::FGridCoordinate targetPosition) const
 {
-	int32 distance = GetDistance(position, targetPosition);
-	return distance <= mCurrentCombatWeapon.range;
+	const FWeaponDef* weapon = GetEquippedWeapon();
+	return weapon && weapon->IsInRange(GetDistance(position, targetPosition));
 }
 
 int32 FBaseUnit::GetMovementCost(const FGrid* grid, FGrid::FGridCoordinate destination, bool passThroughAllies) const
@@ -100,7 +101,12 @@ bool FBaseUnit::CanDoAction(int32 cost) const
 
 bool FBaseUnit::CanAttack(int32 cost) const
 {
-	int32 atkCost = mCurrentCombatWeapon.baseCost + cost;
+	const FWeaponDef* weapon = GetEquippedWeapon();
+	if (!weapon)
+	{
+		return false;
+	}
+	int32 atkCost = weapon->apCost + cost;
 	if (mCurrentTurnResources.ap < atkCost)
 	{
 		return false;
@@ -188,6 +194,16 @@ FBaseStatusEffect* FBaseUnit::AddStatusEffect(uint8 StatusId)
 		return nullptr;
 	}
 
+	return AddStatusEffect(std::make_unique<FStatusEffect>(this, StatusId));
+}
+
+FBaseStatusEffect* FBaseUnit::AddStatusEffect(std::unique_ptr<FBaseStatusEffect> newEffect)
+{
+	if (!newEffect || newEffect->GetUnit() != this || HasStatusType(newEffect->GetType()))
+	{
+		return nullptr;
+	}
+
 	for (uint8 i = 0; i < MAX_EFFECTS_PER_UNIT; ++i)
 	{
 		if (mStatusEffectsBuffer[i])
@@ -195,7 +211,7 @@ FBaseStatusEffect* FBaseUnit::AddStatusEffect(uint8 StatusId)
 			continue;
 		}
 
-		mStatusEffectsBuffer[i] = std::make_unique<FStatusEffect>(this, StatusId);
+		mStatusEffectsBuffer[i] = std::move(newEffect);
 		FBaseStatusEffect* effect = mStatusEffectsBuffer[i].get();
 
 		if (OnStatusAdded)
@@ -354,17 +370,86 @@ void FBaseUnit::SetName(const FName& name)
 
 int32 FBaseUnit::GetWeaponAttackCost() const
 {
-	return mCurrentCombatWeapon.baseCost; //TODO: get attack cost based on the weapon
+	const FWeaponDef* weapon = GetEquippedWeapon();
+	return weapon ? weapon->apCost : 0;
 }
 
 int32 FBaseUnit::GetWeaponBaseDamage() const
 {
-	return mCurrentCombatWeapon.baseDamage;
+	const FWeaponDef* weapon = GetEquippedWeapon();
+	return weapon ? weapon->baseDamage : 0;
 }
 
 int32 FBaseUnit::GetWeaponAttackRange() const
 {
-	return mCurrentCombatWeapon.range;
+	const FWeaponDef* weapon = GetEquippedWeapon();
+	return weapon ? weapon->maxRange : 0;
+}
+
+int32 FBaseUnit::GetWeaponMinRange() const
+{
+	const FWeaponDef* weapon = GetEquippedWeapon();
+	return weapon ? weapon->minRange : 0;
+}
+
+void FBaseUnit::AddWeapon(const FWeaponDef& weapon)
+{
+	mWeapons.push_back(weapon);
+}
+
+bool FBaseUnit::RemoveWeapon(int32 index)
+{
+	if (index < 0 || index >= static_cast<int32>(mWeapons.size()))
+	{
+		return false;
+	}
+
+	mWeapons.erase(mWeapons.begin() + index);
+	if (index < mEquippedWeapon)
+	{
+		--mEquippedWeapon;
+	}
+	else if (index == mEquippedWeapon)
+	{
+		mEquippedWeapon = 0;
+	}
+	return true;
+}
+
+const std::vector<FWeaponDef>& FBaseUnit::GetWeapons() const
+{
+	return mWeapons;
+}
+
+bool FBaseUnit::EquipWeapon(int32 index)
+{
+	if (index < 0 || index >= static_cast<int32>(mWeapons.size()))
+	{
+		return false;
+	}
+
+	mEquippedWeapon = index;
+	return true;
+}
+
+int32 FBaseUnit::GetEquippedWeaponIndex() const
+{
+	return mEquippedWeapon;
+}
+
+const FWeaponDef* FBaseUnit::GetEquippedWeapon() const
+{
+	if (mEquippedWeapon < 0 || mEquippedWeapon >= static_cast<int32>(mWeapons.size()))
+	{
+		return nullptr;
+	}
+	return &mWeapons[mEquippedWeapon];
+}
+
+void FBaseUnit::SetWeapons(const std::vector<FWeaponDef>& weapons)
+{
+	mWeapons = weapons;
+	mEquippedWeapon = 0;
 }
 
 int32 FBaseUnit::GetVisionRange() const
@@ -387,7 +472,13 @@ void FBaseUnit::SetCombatStats(const FCombatStats& combatStats, const FTurnResou
 
 void FBaseUnit::SetCombatWeapon(const FCombatWeapon& combatWeapon)
 {
-	mCurrentCombatWeapon = combatWeapon;
+	// Back-compat: the single legacy weapon becomes the weapon at index 0 (range 1..range).
+	FWeaponDef weapon;
+	weapon.baseDamage = combatWeapon.baseDamage;
+	weapon.apCost = combatWeapon.baseCost;
+	weapon.minRange = 1;
+	weapon.maxRange = combatWeapon.range;
+	SetWeapons({weapon});
 }
 
 int32 FBaseUnit::GetDistance(FGrid::FGridCoordinate position, FGrid::FGridCoordinate targetPosition)

@@ -5,7 +5,7 @@
 #include "Platform/BattlefieldLog.h"
 
 FBattleController::FBattleController(FGrid* grid) :
-	mQueries(&mTeamSystem, grid, &mBattlefield),
+	mQueries(&mTeamSystem, grid, &mBattlefield, &mActions),
 	mBattlefield(&mTeamSystem),
 	mpGrid(grid)
 {
@@ -16,8 +16,10 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
                                         const FBaseUnit::FCombatWeapon& weapon,
                                         FGrid::FGridCoordinate position,
                                         const FName& name,
-                                        const std::map<FName, int32>& attributes)
+                                        const std::map<FName, int32>& attributes,
+                                        const std::vector<FWeaponDef>& weapons)
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (mpGrid->IsBlocked(position))
 	{
 		BF_LOG(Error, "FBattleController/SpawnUnit: Failed To Spawn position (%d, %d) blocked",
@@ -35,6 +37,10 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
 	}
 
 	unit->SetName(name);
+	if (!weapons.empty())
+	{
+		unit->SetWeapons(weapons);
+	}
 	for (const auto& [attrName, attrValue] : attributes)
 	{
 		unit->SetAttribute(attrName, attrValue);
@@ -96,6 +102,7 @@ FBaseUnit* FBattleController::SpawnUnit(ETeams team, const FBaseUnit::FCombatSta
 
 bool FBattleController::MoveUnit(FBaseUnit* unit, FGrid::FGridCoordinate destination) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!mTeamSystem.CanAct(unit))
 	{
 		return false;
@@ -122,6 +129,7 @@ bool FBattleController::MoveUnit(FBaseUnit* unit, FGrid::FGridCoordinate destina
 
 bool FBattleController::MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate destination, int32 cost) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!mTeamSystem.CanAct(unit))
 	{
 		return false;
@@ -147,6 +155,7 @@ bool FBattleController::MoveUnitRaw(FBaseUnit* unit, FGrid::FGridCoordinate dest
 
 bool FBattleController::AttackUnitWithWeapon(FBaseUnit* attacker, FBaseUnit* target) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!attacker || !target)
 	{
 		return false;
@@ -173,19 +182,63 @@ bool FBattleController::AttackUnitWithWeapon(FBaseUnit* attacker, FBaseUnit* tar
 	{
 		return false;
 	}
-	int32 damage = attacker->CalculateWeaponAttackDamage(attackerPos, targetPos);
+	const FWeaponDef* weapon = attacker->GetEquippedWeapon();
+	if (!weapon)
+	{
+		return false;
+	}
+
+	const FAttackResult result = ResolveAttack(attacker, target, *weapon);
+	const int32 damage = result.hit ? std::max(result.damage, 0) : 0;
+	// A miss (or 0 damage) never reaches ReceiveDamage, so OnUnitDamaged does not fire.
 	target->ReceiveDamage(damage);
 	attacker->SpendActionPoints(cost);
 
 	if (OnUnitDidAttacked)
 	{
-		OnUnitDidAttacked({attacker, target, damage});
+		OnUnitDidAttacked({attacker, target, damage, result.hit, result.critical, result.userValue});
 	}
 	return true;
 }
 
+FAttackResult FBattleController::ResolveAttack(FBaseUnit* attacker, FBaseUnit* target,
+                                               const FWeaponDef& weapon) const
+{
+	if (!OnResolveAttack)
+	{
+		FAttackResult result;
+		result.damage = attacker->CalculateWeaponAttackDamage(mpGrid->GetUnitPosition(attacker),
+		                                                      mpGrid->GetUnitPosition(target));
+		return result;
+	}
+
+	assert(!mResolvingAttack && "OnResolveAttack must not trigger another attack resolution");
+	mResolvingAttack = true;
+	const FAttackResult result = OnResolveAttack(*attacker, *target, weapon);
+	mResolvingAttack = false;
+	return result;
+}
+
+FAttackResult FBattleController::PreviewAttack(FBaseUnit* attacker, FBaseUnit* target) const
+{
+	FAttackResult none;
+	none.hit = false;
+	if (!attacker || !target)
+	{
+		return none;
+	}
+
+	const FWeaponDef* weapon = attacker->GetEquippedWeapon();
+	if (!weapon)
+	{
+		return none;
+	}
+	return ResolveAttack(attacker, target, *weapon);
+}
+
 bool FBattleController::AttackUnitRaw(FBaseUnit* healer, FBaseUnit* target, int32 range, int32 cost, int32 damage) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!healer || !target)
 	{
 		return false;
@@ -223,6 +276,7 @@ bool FBattleController::AttackUnitRaw(FBaseUnit* healer, FBaseUnit* target, int3
 
 bool FBattleController::HealUnitRaw(FBaseUnit* attacker, FBaseUnit* target, int32 range, int32 cost, int32 value) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!attacker || !target)
 	{
 		return false;
@@ -305,8 +359,99 @@ bool FBattleController::HasStatus(FBaseUnit* unit, uint8 statusId)
 	return unit->HasStatusType(statusId);
 }
 
+bool FBattleController::RegisterAction(const FActionDef& action)
+{
+	if (action.id.empty())
+	{
+		return false;
+	}
+
+	for (FActionDef& existing : mActions)
+	{
+		if (existing.id == action.id)
+		{
+			existing = action;
+			return true;
+		}
+	}
+	mActions.push_back(action);
+	return true;
+}
+
+bool FBattleController::UnregisterAction(const FName& id)
+{
+	auto it = std::find_if(mActions.begin(), mActions.end(), [&](const FActionDef& a) { return a.id == id; });
+	if (it == mActions.end())
+	{
+		return false;
+	}
+	mActions.erase(it);
+	return true;
+}
+
+const std::vector<FActionDef>& FBattleController::GetActions() const
+{
+	return mActions;
+}
+
+bool FBattleController::PerformAction(FBaseUnit* unit, const FName& actionId, FGrid::FGridCoordinate target) const
+{
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
+	if (!unit)
+	{
+		return false;
+	}
+
+	auto it = std::find_if(mActions.begin(), mActions.end(), [&](const FActionDef& a) { return a.id == actionId; });
+	if (it == mActions.end())
+	{
+		return false;
+	}
+	// Copy: execute is allowed to change the registry, which would invalidate the iterator.
+	const FActionDef action = *it;
+
+	if (action.apCost < 0 || !mTeamSystem.CanAct(unit) || !unit->CanDoAction(action.apCost))
+	{
+		return false;
+	}
+	if (action.canUse && !action.canUse(*unit))
+	{
+		return false;
+	}
+	if (action.execute && !action.execute(*unit, target))
+	{
+		return false;
+	}
+
+	if (action.apCost > 0)
+	{
+		unit->SpendActionPoints(action.apCost);
+	}
+	if (OnUnitActionPerformed)
+	{
+		OnUnitActionPerformed(unit);
+	}
+	if (OnActionPerformed)
+	{
+		OnActionPerformed(unit, action.id);
+	}
+	if (action.endsUnitTurn)
+	{
+		WaitUnit(unit);
+	}
+	return true;
+}
+
 bool FBattleController::DoUnitAction(FBaseUnit* unit) const
 {
+	for (const FActionDef& action : mActions)
+	{
+		if (action.id == kDefaultActionId)
+		{
+			return PerformAction(unit, kDefaultActionId);
+		}
+	}
+
 	if (!mTeamSystem.CanAct(unit))
 	{
 		return false;
@@ -328,6 +473,7 @@ bool FBattleController::DoUnitAction(FBaseUnit* unit) const
 
 bool FBattleController::WaitUnit(FBaseUnit* unit) const
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (!unit || !unit->IsAlive() || unit->HasWaited())
 	{
 		return false;
@@ -368,7 +514,7 @@ bool FBattleController::StartBattle(const FBattleStartData& data)
 			return false;
 		}
 		FBaseUnit* createdUnit = SpawnUnit(unit.team, unit.combatStats, unit.turnResources, unit.weapon, unit.position,
-		                                      unit.name, unit.attributes);
+		                                      unit.name, unit.attributes, unit.weapons);
 		if (!createdUnit)
 		{
 			BF_LOG(Error, "FBattleController/StartBattle: Failed To create Unit");
@@ -385,6 +531,7 @@ bool FBattleController::StartBattle(const FBattleStartData& data)
 
 void FBattleController::EndTurn()
 {
+	assert(!mResolvingAttack && "mutating the battle from OnResolveAttack");
 	if (OnTurnEnded)
 	{
 		OnTurnEnded(mTeamSystem.GetCurrentTeam());

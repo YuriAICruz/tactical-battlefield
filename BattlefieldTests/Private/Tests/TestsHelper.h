@@ -28,6 +28,18 @@ public:
 		5
 	};
 
+	static FWeaponDef MakeWeapon(const FName& id, int32 minRange, int32 maxRange, int32 baseDamage = 3, int32 apCost = 1)
+	{
+		FWeaponDef weapon;
+		weapon.id = id;
+		weapon.name = id;
+		weapon.minRange = minRange;
+		weapon.maxRange = maxRange;
+		weapon.baseDamage = baseDamage;
+		weapon.apCost = apCost;
+		return weapon;
+	}
+
 	static FBattleController CreateController(FGrid* grid)
 	{
 		return FBattleController(grid);

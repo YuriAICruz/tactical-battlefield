@@ -87,8 +87,8 @@ allied units; those tiles are crossed but never listed. `FBaseUnit::GetMovementC
 
 1. both pointers are non-null and the units are **hostile** (different teams, neither `Null`),
 2. it is the attacker's team's turn and the attacker can act,
-3. the attacker has at least `weapon.baseCost` AP,
-4. the Manhattan distance between them is `≤ weapon.range`.
+3. the attacker has an equipped weapon and at least `weapon.apCost` AP (legacy `FCombatWeapon.baseCost`),
+4. the Manhattan distance between them is within the equipped weapon band `minRange ≤ distance ≤ maxRange` (a legacy `FCombatWeapon` is the band `1..range`).
 
 Damage: `distance = max(1, manhattan)`, `multiplier = min(1, aim / distance)` using **integer** division,
 `damage = baseDamage × multiplier`. So a shot is full damage while `distance ≤ aim` and **zero** beyond that.
@@ -96,9 +96,13 @@ Damage: `distance = max(1, manhattan)`, `multiplier = min(1, aim / distance)` us
 Order of events for a successful attack: `OnUnitDamaged` → (if lethal) the tile is cleared, `OnUnitDied`, and when a
 team is wiped out `OnWinnerDeclared` then `OnBattleEnded` → AP is spent → `OnUnitDidAttacked`.
 
+**Resolve hook.** If `FBattleController::OnResolveAttack(attacker, target, weapon)` is set, its `FAttackResult` replaces the formula above: `hit=false` is a miss (AP is spent, `OnUnitDidAttacked` fires with damage 0 and `Hit=false`, no `OnUnitDamaged`); otherwise `damage` (negative clamped to 0) is applied through the normal path. `critical` and `userValue` are only forwarded in the event. The hook runs after all validation, so it is never called for an illegal attack. **The hook must not mutate the battle** (move, spawn, attack, heal, wait, end turn): read-only queries only, asserted in debug builds. `PreviewAttack(attacker, target)` runs the same hook (or formula) without applying anything, for forecasts; the DLL never rolls RNG, so randomness stays in the client.
+
 `AttackUnitRaw(attacker, target, range, cost, damage)` and `HealUnitRaw(...)` do the same with caller-supplied
 numbers (scripted/ability effects). `HealUnitRaw` requires a **friendly** (non-hostile) target; healing an enemy is
-rejected and spends nothing. `DoUnitAction(unit)` requires the unit to be on the current team, spends the unit's action
+rejected and spends nothing.
+
+**Custom actions.** `RegisterAction(FActionDef)` adds a client-defined action (same id replaces; empty id rejected). `PerformAction(unit, id, target)` requires the unit on the current team and able to act, a registered id, enough AP (`apCost`) and `canUse` (if set); it then calls `execute(unit, target)` (unset = succeeds with no effect). If `execute` returns `false` nothing is spent and no event fires. On success it spends `apCost`, raises `OnUnitActionPerformed` and `OnActionPerformed(unit, id)`, and when `endsUnitTurn` waits the unit (`OnUnitWaited`). `execute` may mutate the battle. `DoUnitAction(unit)` is deprecated: it runs the action registered as `"default"`; when none is registered it keeps the old stub, which requires the unit to be on the current team, spends the unit's action
 cost (currently always 1 AP) and raises `OnUnitActionPerformed`.
 
 ## 7. Victory
@@ -122,13 +126,16 @@ is blocked/occupied/off-board, or creation fails. `SpawnUnit` can also be used o
 |---|---|
 | `GetUnitsForTeam(mask, out)` / `GetUnitsForCurrentTeam` | living units of the masked teams |
 | `GetUnitAt(coord)` | unit on a tile or `nullptr` |
-| `GetAttackableTargets(unit, out)` | occupants within weapon range whose team is not the unit's own |
+| `GetAttackableTargets(unit, out)` | occupants inside the equipped weapon band whose team is not the unit's own |
+| `GetAttackableTargetsFrom(unit, tile, out)` | the same, as if the unit stood on `tile` |
+| `GetAttackArea(unit, tile, out)` | tiles inside the equipped weapon band from `tile` (overlay and AI), empty when unarmed |
 | `GetVisibleUnits(unit, out, mask)` | units of other teams inside the weighted vision area |
 | `HasLineOfSight(unit, coord)` | within vision range and not blocked by walls |
 | `FindNearestUnit(unit, range)` | nearest living unit of another team inside the Manhattan radius `range`, ranked by weighted distance |
 | `GetPath` / `GetPathTo` | A\* path ignoring unit blockers |
 | `GetUnitMovementCost` | cost to reach a tile |
 | `GetValidActions(unit, cost)` | flags `Move`, `Attack`, `DoActions`; `None` for dead units |
+| `GetAvailableActions(unit, out)` | registered actions the living unit has the AP for and whose `canUse` allows |
 | `HasWinner` / `GetWinner` / `GetCurrentTeam` | battle state |
 
 ## 10. Known placeholders and quirks (kept from the Unreal module)
@@ -138,5 +145,6 @@ original game logic. Candidates for a future clean-up (the other quirks of the o
 
 1. `armor` and `dodge` are stored but not used by any formula.
 2. `ApplyStatus` / `RemoveStatus` check the attacker's **AP** but spend **movement** points.
-3. `GetVisibleUnits` computes a line-of-sight list first but then overwrites it with the weighted-area result, so
+3. `FBaseUnit::CanAttack(cost)` only checks AP and that a weapon is equipped; the distance is checked by `InRange` and the target queries.
+4. `GetVisibleUnits` computes a line-of-sight list first but then overwrites it with the weighted-area result, so
    effectively only the area test decides.

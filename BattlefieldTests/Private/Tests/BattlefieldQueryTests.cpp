@@ -500,3 +500,249 @@ bool MovementCostThroughAllyTest::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+static bool ContainsUnit(const std::vector<const FGridEntity*>& units, const FGridEntity* unit)
+{
+	return std::ranges::find(units, unit) != units.end();
+}
+
+BATTLEFIELD_QUERY_TEST(AttackAreaRangeOneTest)
+
+bool AttackAreaRangeOneTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	unit->SetWeapons({TestsHelper::MakeWeapon("sword", 1, 1)});
+
+	std::vector<FGrid::FGridCoordinate> area;
+	controller.GetQueryController()->GetAttackArea(unit, {5, 5}, area);
+
+	TestEqual(TEXT("Four adjacent tiles"), static_cast<int32>(area.size()), 4);
+	TestTrue(TEXT("Right"), TestsHelper::ContainsTile(area, {6, 5}));
+	TestTrue(TEXT("Up"), TestsHelper::ContainsTile(area, {5, 4}));
+	TestFalse(TEXT("Own tile excluded"), TestsHelper::ContainsTile(area, {5, 5}));
+	TestFalse(TEXT("Distance 2 excluded"), TestsHelper::ContainsTile(area, {7, 5}));
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(AttackAreaExactRangeTwoTest)
+
+bool AttackAreaExactRangeTwoTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	unit->SetWeapons({TestsHelper::MakeWeapon("bow", 2, 2)});
+
+	std::vector<FGrid::FGridCoordinate> area;
+	controller.GetQueryController()->GetAttackArea(unit, {5, 5}, area);
+
+	TestEqual(TEXT("Eight tiles at distance 2"), static_cast<int32>(area.size()), 8);
+	TestFalse(TEXT("Adjacent excluded"), TestsHelper::ContainsTile(area, {6, 5}));
+	TestTrue(TEXT("Straight two"), TestsHelper::ContainsTile(area, {7, 5}));
+	TestTrue(TEXT("Diagonal"), TestsHelper::ContainsTile(area, {6, 6}));
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(AttackAreaBandOneToTwoTest)
+
+bool AttackAreaBandOneToTwoTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	unit->SetWeapons({TestsHelper::MakeWeapon("javelin", 1, 2)});
+
+	std::vector<FGrid::FGridCoordinate> area;
+	controller.GetQueryController()->GetAttackArea(unit, {5, 5}, area);
+
+	TestEqual(TEXT("Twelve tiles"), static_cast<int32>(area.size()), 12);
+	TestTrue(TEXT("Adjacent included"), TestsHelper::ContainsTile(area, {6, 5}));
+	TestTrue(TEXT("Distance 2 included"), TestsHelper::ContainsTile(area, {7, 5}));
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(AttackAreaClippedByGridEdgeTest)
+
+bool AttackAreaClippedByGridEdgeTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {0, 0});
+	unit->SetWeapons({TestsHelper::MakeWeapon("sword", 1, 1)});
+
+	std::vector<FGrid::FGridCoordinate> area;
+	controller.GetQueryController()->GetAttackArea(unit, {0, 0}, area);
+
+	TestEqual(TEXT("Only two tiles inside the grid"), static_cast<int32>(area.size()), 2);
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(AttackAreaUnarmedIsEmptyTest)
+
+bool AttackAreaUnarmedIsEmptyTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	unit->SetWeapons({});
+
+	std::vector<FGrid::FGridCoordinate> area{{1, 1}};
+	controller.GetQueryController()->GetAttackArea(unit, {5, 5}, area);
+	TestTrue(TEXT("Unarmed: empty area"), area.empty());
+
+	area.push_back({1, 1});
+	controller.GetQueryController()->GetAttackArea(nullptr, {5, 5}, area);
+	TestTrue(TEXT("Null unit: empty area"), area.empty());
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(AttackableTargetsRespectMinRangeTest)
+
+bool AttackableTargetsRespectMinRangeTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* archer = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* adjacent = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+	FBaseUnit* far = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {7, 5});
+	FBaseUnit* tooFar = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {8, 5});
+	archer->SetWeapons({TestsHelper::MakeWeapon("bow", 2, 2)});
+
+	std::vector<const FGridEntity*> targets;
+	controller.GetQueryController()->GetAttackableTargets(archer, targets);
+
+	TestEqual(TEXT("Only the unit at distance 2"), static_cast<int32>(targets.size()), 1);
+	TestTrue(TEXT("Distance 2 target"), ContainsUnit(targets, far));
+	TestFalse(TEXT("Adjacent not attackable"), ContainsUnit(targets, adjacent));
+	TestFalse(TEXT("Distance 3 not attackable"), ContainsUnit(targets, tooFar));
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(SwitchingWeaponChangesTargetsTest)
+
+bool SwitchingWeaponChangesTargetsTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {5, 5});
+	FBaseUnit* near = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {6, 5});
+	FBaseUnit* far = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {7, 5});
+	unit->SetWeapons({TestsHelper::MakeWeapon("sword", 1, 1), TestsHelper::MakeWeapon("bow", 2, 2)});
+
+	std::vector<const FGridEntity*> targets;
+	controller.GetQueryController()->GetAttackableTargets(unit, targets);
+	TestEqual(TEXT("Sword: one target"), static_cast<int32>(targets.size()), 1);
+	TestTrue(TEXT("Sword hits the adjacent one"), ContainsUnit(targets, near));
+
+	unit->EquipWeapon(1);
+	controller.GetQueryController()->GetAttackableTargets(unit, targets);
+	TestEqual(TEXT("Bow: one target"), static_cast<int32>(targets.size()), 1);
+	TestTrue(TEXT("Bow hits the far one"), ContainsUnit(targets, far));
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(AttackableTargetsFromHypotheticalTileTest)
+
+bool AttackableTargetsFromHypotheticalTileTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {1, 1});
+	FBaseUnit* enemy = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {8, 8});
+	unit->SetWeapons({TestsHelper::MakeWeapon("sword", 1, 1)});
+
+	std::vector<const FGridEntity*> targets;
+	controller.GetQueryController()->GetAttackableTargetsFrom(unit, {7, 8}, targets);
+	TestEqual(TEXT("From (7,8) the enemy is adjacent"), static_cast<int32>(targets.size()), 1);
+	TestTrue(TEXT("It is the enemy"), ContainsUnit(targets, enemy));
+
+	controller.GetQueryController()->GetAttackableTargetsFrom(unit, {1, 2}, targets);
+	TestTrue(TEXT("From (1,2) nothing in reach"), targets.empty());
+
+	controller.GetQueryController()->GetAttackableTargets(unit, targets);
+	TestTrue(TEXT("From the real position nothing in reach"), targets.empty());
+	TestEqual(TEXT("Unit did not move (x)"), grid.GetUnitPosition(unit).x, 1);
+	TestEqual(TEXT("Unit did not move (y)"), grid.GetUnitPosition(unit).y, 1);
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(LegacyWeaponTargetsUnchangedTest)
+
+bool LegacyWeaponTargetsUnchangedTest::RunTest(const FString& Parameters)
+{
+	// Legacy FCombatWeapon (range 5) behaves as before: everything within distance 1..5 is a target.
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	FBaseUnit* adjacent = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {3, 2});
+	FBaseUnit* edge = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {2, 7});
+	FBaseUnit* outside = TestsHelper::SpawnUnit(controller, ETeams::Enemy, {9, 9});
+
+	std::vector<const FGridEntity*> targets;
+	controller.GetQueryController()->GetAttackableTargets(unit, targets);
+	TestTrue(TEXT("Adjacent target"), ContainsUnit(targets, adjacent));
+	TestTrue(TEXT("Target at distance 5"), ContainsUnit(targets, edge));
+	TestFalse(TEXT("Target at distance 14"), ContainsUnit(targets, outside));
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(GetAvailableActionsFiltersByCanUseAndApTest)
+
+bool GetAvailableActionsFiltersByCanUseAndApTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	unit->SetAttribute("canHeal", 0);
+
+	FActionDef heal;
+	heal.id = "heal";
+	heal.apCost = 1;
+	heal.canUse = [](const FBaseUnit& u) { return u.GetAttribute("canHeal") > 0; };
+	FActionDef wait;
+	wait.id = "wait";
+	wait.apCost = 0;
+	FActionDef ultimate;
+	ultimate.id = "ultimate";
+	ultimate.apCost = 99;
+	controller.RegisterAction(heal);
+	controller.RegisterAction(wait);
+	controller.RegisterAction(ultimate);
+
+	std::vector<const FActionDef*> actions;
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestEqual(TEXT("Only wait: heal locked, ultimate too expensive"), static_cast<int32>(actions.size()), 1);
+	if (actions.size() == 1) TestEqual(TEXT("It is wait"), actions[0]->id, FName("wait"));
+
+	unit->SetAttribute("canHeal", 1);
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestEqual(TEXT("Heal unlocked"), static_cast<int32>(actions.size()), 2);
+
+	while (unit->GetActionPoints() > 0) unit->SpendActionPoints(1);
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestEqual(TEXT("No AP: only the free action"), static_cast<int32>(actions.size()), 1);
+	return true;
+}
+
+BATTLEFIELD_QUERY_TEST(GetAvailableActionsDeadOrNullTest)
+
+bool GetAvailableActionsDeadOrNullTest::RunTest(const FString& Parameters)
+{
+	FGrid grid = TestsHelper::CreateTestGrid();
+	FBattleController controller = TestsHelper::CreateController(&grid);
+	FBaseUnit* unit = TestsHelper::SpawnUnit(controller, ETeams::Player, {2, 2});
+	FActionDef wait;
+	wait.id = "wait";
+	controller.RegisterAction(wait);
+
+	std::vector<const FActionDef*> actions;
+	controller.GetQueryController()->GetAvailableActions(nullptr, actions);
+	TestTrue(TEXT("Null unit: empty"), actions.empty());
+
+	unit->ReceiveDamage(unit->GetMaxHealth());
+	controller.GetQueryController()->GetAvailableActions(unit, actions);
+	TestTrue(TEXT("Dead unit: empty"), actions.empty());
+	return true;
+}

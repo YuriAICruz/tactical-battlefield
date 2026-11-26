@@ -23,6 +23,10 @@ target_include_directories(Battlefield
 target_compile_features(Battlefield PUBLIC cxx_std_20)
 target_compile_definitions(Battlefield PRIVATE BATTLEFIELD_EXPORTS)
 
+# Debug and Release share one install prefix (dist): the Debug binaries get a "d" suffix (Battlefieldd.dll/.lib)
+# so the second install does not overwrite the first. find_package(Battlefield) picks the right one per config.
+set_target_properties(Battlefield PROPERTIES DEBUG_POSTFIX d)
+
 if(MSVC)
   target_compile_options(Battlefield PRIVATE /W4 /permissive- /utf-8)
 else()

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(BattlefieldCpp VERSION 1.0.0 LANGUAGES CXX)
+project(BattlefieldCpp VERSION 1.1.0 LANGUAGES CXX)
 
 # Group the projects nicely in the IDE solution explorer.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

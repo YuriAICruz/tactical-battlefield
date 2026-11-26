@@ -91,12 +91,43 @@ FBaseUnit* FBattleQueries::GetUnitAt(FGrid::FGridCoordinate position) const
 void FBattleQueries::GetAttackableTargets(
 	const FBaseUnit* unit, std::vector<const FGridEntity*>& targets) const
 {
-	int32 range = unit->GetWeaponAttackRange();
-	std::vector<FGrid::FGridCoordinate> area;
-	mpGrid->GetNeighbours(mpGrid->GetUnitPosition(unit), area, range);
+	GetAttackableTargetsFrom(unit, mpGrid->GetUnitPosition(unit), targets);
+}
 
-	ETeams team = unit->GetTeam();
-	mpGrid->GetUnitsOnArea(area, targets, Invert(team));
+void FBattleQueries::GetAttackArea(const FBaseUnit* unit, FGrid::FGridCoordinate fromTile,
+                                   std::vector<FGrid::FGridCoordinate>& area) const
+{
+	area.clear();
+	const FWeaponDef* weapon = unit ? unit->GetEquippedWeapon() : nullptr;
+	if (!weapon || weapon->maxRange <= 0)
+	{
+		return;
+	}
+
+	std::vector<FGrid::FGridCoordinate> inReach;
+	mpGrid->GetNeighbours(fromTile, inReach, static_cast<uint16_t>(weapon->maxRange));
+	for (const FGrid::FGridCoordinate& coord : inReach)
+	{
+		const int32 distance = std::abs(coord.x - fromTile.x) + std::abs(coord.y - fromTile.y);
+		if (weapon->IsInRange(distance))
+		{
+			area.push_back(coord);
+		}
+	}
+}
+
+void FBattleQueries::GetAttackableTargetsFrom(const FBaseUnit* unit, FGrid::FGridCoordinate tile,
+                                              std::vector<const FGridEntity*>& targets) const
+{
+	targets.clear();
+	if (!unit)
+	{
+		return;
+	}
+
+	std::vector<FGrid::FGridCoordinate> area;
+	GetAttackArea(unit, tile, area);
+	mpGrid->GetUnitsOnArea(area, targets, Invert(unit->GetTeam()));
 }
 
 void FBattleQueries::GetVisibleUnits(const FBaseUnit* unit, std::vector<const FGridEntity*>& units,
@@ -270,4 +301,26 @@ EBattleAction FBattleQueries::GetValidActions(const FBaseUnit* unit, int32 cost)
 	}
 
 	return actions;
+}
+
+void FBattleQueries::GetAvailableActions(const FBaseUnit* unit, std::vector<const FActionDef*>& actions) const
+{
+	actions.clear();
+	if (!unit || !mActions || !unit->IsAlive())
+	{
+		return;
+	}
+
+	for (const FActionDef& action : *mActions)
+	{
+		if (action.apCost < 0 || !unit->CanDoAction(action.apCost))
+		{
+			continue;
+		}
+		if (action.canUse && !action.canUse(*unit))
+		{
+			continue;
+		}
+		actions.push_back(&action);
+	}
 }
