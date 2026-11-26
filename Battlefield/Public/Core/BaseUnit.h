@@ -111,6 +111,12 @@ public:
 
 	void ResetTurnStats();
 
+	// Turn state: a unit that waited is done for this phase (cleared by ResetTurnStats on its team's next turn).
+	void Wait();
+	bool HasWaited() const;
+	// Alive, has not waited, and still has move or AP.
+	bool CanAct() const;
+
 	// Attribute bag: game-defined named integers (STR, SKL, level, XP...). Stored, never interpreted.
 	void SetAttribute(const FName& name, int32 value);
 	int32 GetAttribute(const FName& name, int32 defaultValue = 0) const;
@@ -140,6 +146,7 @@ private:
 	std::map<FName, int32> mAttributes;
 	FName mTag;
 	FName mName;
+	bool mHasWaited = false;
 	std::unique_ptr<FBaseStatusEffect> mStatusEffectsBuffer[MAX_EFFECTS_PER_UNIT];
 };
 

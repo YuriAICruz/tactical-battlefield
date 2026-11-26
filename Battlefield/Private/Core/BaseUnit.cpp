@@ -286,8 +286,29 @@ void FBaseUnit::ResetTurnStats()
 {
 	mCurrentTurnResources.move = mBaseTurnResources.move;
 	mCurrentTurnResources.ap = mBaseTurnResources.ap;
+	mHasWaited = false;
 
 	AddStatusTurnTicks();
+}
+
+void FBaseUnit::Wait()
+{
+	mHasWaited = true;
+}
+
+bool FBaseUnit::HasWaited() const
+{
+	return mHasWaited;
+}
+
+bool FBaseUnit::CanAct() const
+{
+	if (mHasWaited)
+	{
+		return false;
+	}
+
+	return CanMove() || CanDoAction();
 }
 
 void FBaseUnit::SetAttribute(const FName& name, int32 value)

@@ -78,6 +78,11 @@ bool FTeamSystem::CanAct(const FBaseUnit* actor, bool checkActor) const
 
 	if (checkActor)
 	{
+		if (mRequireWait && actor->HasWaited())
+		{
+			return false;
+		}
+
 		if (!actor->CanMove() && !actor->CanDoAction())
 		{
 			return false;
@@ -144,4 +149,14 @@ ETeams FTeamSystem::GetWinner() const
 uint32 FTeamSystem::GetNextId() const
 {
 	return mCurrentTeamsUnitsCount;
+}
+
+void FTeamSystem::SetRequireWait(bool require)
+{
+	mRequireWait = require;
+}
+
+bool FTeamSystem::GetRequireWait() const
+{
+	return mRequireWait;
 }

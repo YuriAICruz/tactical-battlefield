@@ -40,6 +40,7 @@ public:
 	std::function<void(const FBattleAttackEvent&)> OnUnitDidAttacked;
 	std::function<void(const FBattleHealEvent&)> OnUnitDidHealed;
 	std::function<void(const FBaseUnit*)> OnUnitActionPerformed;
+	std::function<void(const FBaseUnit*)> OnUnitWaited;
 	std::function<void(const FBattleDamageEvent&)> OnUnitDamaged;
 	std::function<void(const FBattleHealedEvent&)> OnUnitHealed;
 	std::function<void(const FBaseUnit*)> OnUnitDied;
@@ -69,6 +70,11 @@ public:
 	static bool HasStatus(FBaseUnit* unit, uint8 statusId);
 
 	bool DoUnitAction(FBaseUnit* unit) const;
+	// Ends the unit's phase. Fails for null/dead units, units not on the current team and units that already waited.
+	bool WaitUnit(FBaseUnit* unit) const;
+	// Opt-in (default false): when true, a unit that waited cannot move or act until its team's next turn.
+	void SetRequireWait(bool require);
+	bool GetRequireWait() const;
 	bool StartBattle(const FBattleStartData& data);
 	void EndTurn();
 	const FBattleQueries* GetQueryController() const { return &mQueries; }

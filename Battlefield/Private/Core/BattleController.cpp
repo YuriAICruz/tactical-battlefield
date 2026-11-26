@@ -326,6 +326,36 @@ bool FBattleController::DoUnitAction(FBaseUnit* unit) const
 	return true;
 }
 
+bool FBattleController::WaitUnit(FBaseUnit* unit) const
+{
+	if (!unit || !unit->IsAlive() || unit->HasWaited())
+	{
+		return false;
+	}
+
+	if (!mTeamSystem.CanAct(unit, false))
+	{
+		return false;
+	}
+
+	unit->Wait();
+	if (OnUnitWaited)
+	{
+		OnUnitWaited(unit);
+	}
+	return true;
+}
+
+void FBattleController::SetRequireWait(bool require)
+{
+	mTeamSystem.SetRequireWait(require);
+}
+
+bool FBattleController::GetRequireWait() const
+{
+	return mTeamSystem.GetRequireWait();
+}
+
 bool FBattleController::StartBattle(const FBattleStartData& data)
 {
 	mBattlefield.Clear();
