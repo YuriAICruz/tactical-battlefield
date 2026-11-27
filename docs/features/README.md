@@ -20,6 +20,9 @@ Rules for every task here:
 | 06 | [Attack resolve hook](06-attack-resolve-hook.md) | 05 | M |
 | 07 | [Custom action registry](07-action-registry.md) | 04, 05 | M |
 | 08 | [Release: tests, docs, install](08-release.md) | all | S |
+| 09 | [Text mode](09-text-mode.md) | none (design only for now) | S |
+| 10 | [Conversation mode](10-conversation-mode.md) | none (design only for now) | M |
+| 11 | [Campaign: sequence of game events](11-campaign.md) | 09, 10 | M |
 
 01 to 04 are independent and can be done in any order. The game project can start its non-DLL work (Lua host, terminal, renderer) in parallel; it needs 08 before it can use the new APIs.
 
