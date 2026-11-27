@@ -35,7 +35,7 @@ cmake --build build-ninja
 ## Visual Studio / Rider solution
 
 Run `Generate.bat` (or `cmake -S . -B vs2022 -G "Visual Studio 17 2022" -A x64`) to produce
-`vs2022\BattlefieldCpp.sln`, then open it in Visual Studio 2022 or Rider (File → Open → the `.sln`).
+`vs2022\BattlefieldCpp.sln` (`Generate.bat -h` / `./Generate.sh -h` print the usage), then open it in Visual Studio 2022 or Rider (File → Open → the `.sln`).
 It contains `Battlefield`, `BattlefieldTests` and `BattlefieldTestRunner`; the runner is the startup project, so
 **F5 debugs the whole suite** and breakpoints in `Battlefield/Private` are hit. To debug a single test, set
 *Debugging → Command Arguments* of `BattlefieldTestRunner` to `--filter Grid.NeighbourTest`.
